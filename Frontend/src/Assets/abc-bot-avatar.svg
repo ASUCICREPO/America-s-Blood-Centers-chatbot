@@ -1,0 +1,11 @@
+<svg width="40" height="40" viewBox="0 0 40 40" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <!-- Circle background -->
+  <circle cx="20" cy="20" r="20" fill="#B91C1C"/>
+  
+  <!-- Blood drop shape -->
+  <path d="M20 8C20 8 14 16 14 22C14 26.418 16.582 30 20 30C23.418 30 26 26.418 26 22C26 16 20 8 20 8Z" fill="white"/>
+  
+  <!-- Small cross inside blood drop -->
+  <rect x="18.5" y="16" width="3" height="10" fill="#B91C1C"/>
+  <rect x="15" y="19.5" width="10" height="3" fill="#B91C1C"/>
+</svg>
