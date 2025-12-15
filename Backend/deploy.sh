@@ -83,8 +83,9 @@ else
 
   echo "Waiting for IAM role to propagate..."
   sleep 10
-fiCODEBUILD_
-PROJECT_NAME="${PROJECT_NAME}-deploy"
+fi
+
+CODEBUILD_PROJECT_NAME="${PROJECT_NAME}-deploy"
 echo "Creating CodeBuild project: $CODEBUILD_PROJECT_NAME"
 
 ENV_VARS=$(cat <<EOF
