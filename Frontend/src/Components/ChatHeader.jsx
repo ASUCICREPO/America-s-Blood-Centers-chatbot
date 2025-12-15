@@ -1,9 +1,10 @@
 import Typography from "@mui/material/Typography"
-import { TEXT, HEADER_TEXT_GRADIENT } from "../utilities/constants"
+import { getCurrentText, HEADER_TEXT_GRADIENT } from "../utilities/constants"
 import { Box, Container, useMediaQuery } from "@mui/material"
 
 function ChatHeader() {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
+  const TEXT = getCurrentText()
 
   return (
     <Container

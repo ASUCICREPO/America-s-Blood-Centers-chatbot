@@ -50,25 +50,65 @@ export const HEALTH_ENDPOINT =
 export const ALLOW_FILE_UPLOAD = false
 export const ALLOW_FAQ = true
 
-// Text Constants
+// Language Support
+export const LANGUAGES = {
+  en: "English",
+  es: "Español"
+}
+
+// Text Constants with Language Support
 export const TEXT = {
-  APP_NAME: "America's Blood Centers AI Assistant",
-  APP_ASSISTANT_NAME: "America's Blood Centers AI Assistant",
-  ABOUT_US_TITLE: "About us",
-  ABOUT_US:
-    "Welcome to the America's Blood Centers AI Assistant. We bring together all our blood donation information and services in one place so you can quickly find help or information. America's Blood Centers is the national association for the nation's largest network of community-based, independent blood centers, serving communities across the United States with safe, available blood products and related services.",
-  FAQ_TITLE: "FAQs",
-  FAQS: [
-    "How do I donate blood?",
-    "What are the eligibility requirements for blood donation?",
-    "Where can I find a blood center near me?",
-    "What is the blood donation process?",
-    "How often can I donate blood?",
-    "What should I do before donating blood?",
-  ],
-  CHAT_HEADER_TITLE: "America's Blood Centers AI Assistant",
-  CHAT_INPUT_PLACEHOLDER: "Ask about blood donation, eligibility, or find a blood center...",
-  HELPER_TEXT: "Cannot send empty message",
+  en: {
+    APP_NAME: "America's Blood Centers AI Assistant",
+    APP_ASSISTANT_NAME: "America's Blood Centers AI Assistant",
+    ABOUT_US_TITLE: "About us",
+    ABOUT_US:
+      "Welcome to the America's Blood Centers AI Assistant. We bring together all our blood donation information and services in one place so you can quickly find help or information. America's Blood Centers is the national association for the nation's largest network of community-based, independent blood centers, serving communities across the United States with safe, available blood products and related services.",
+    FAQ_TITLE: "FAQs",
+    FAQS: [
+      "How many people donate blood?",
+      "Am I eligible to donate?",
+      "Where can I donate blood?",
+      "How can I support the blood supply other than donating?",
+      "What legislation is actively affecting the blood supply?",
+      "How can I write my member of congress to support the blood supply through legislation?",
+    ],
+    CHAT_HEADER_TITLE: "America's Blood Centers AI Assistant",
+    CHAT_INPUT_PLACEHOLDER: "Ask about blood donation, eligibility, or find a blood center...",
+    HELPER_TEXT: "Cannot send empty message",
+    LANGUAGE_SELECTOR: "Language",
+    BLOOD_CENTER_LINK: "Find a Blood Center",
+  },
+  es: {
+    APP_NAME: "Asistente de IA de America's Blood Centers",
+    APP_ASSISTANT_NAME: "Asistente de IA de America's Blood Centers",
+    ABOUT_US_TITLE: "Acerca de nosotros",
+    ABOUT_US:
+      "Bienvenido al Asistente de IA de America's Blood Centers. Reunimos toda nuestra información y servicios de donación de sangre en un solo lugar para que pueda encontrar rápidamente ayuda o información. America's Blood Centers es la asociación nacional de la red más grande de centros de sangre independientes basados en la comunidad, sirviendo a comunidades en todo Estados Unidos con productos sanguíneos seguros y disponibles y servicios relacionados.",
+    FAQ_TITLE: "Preguntas Frecuentes",
+    FAQS: [
+      "¿Cuántas personas donan sangre?",
+      "¿Soy elegible para donar?",
+      "¿Dónde puedo donar sangre?",
+      "¿Cómo puedo apoyar el suministro de sangre además de donar?",
+      "¿Qué legislación está afectando activamente el suministro de sangre?",
+      "¿Cómo puedo escribir a mi miembro del congreso para apoyar el suministro de sangre a través de la legislación?",
+    ],
+    CHAT_HEADER_TITLE: "Asistente de IA de America's Blood Centers",
+    CHAT_INPUT_PLACEHOLDER: "Pregunta sobre donación de sangre, elegibilidad, o encuentra un centro de sangre...",
+    HELPER_TEXT: "No se puede enviar mensaje vacío",
+    LANGUAGE_SELECTOR: "Idioma",
+    BLOOD_CENTER_LINK: "Encontrar un Centro de Sangre",
+  }
+}
+
+// Default to English, but allow dynamic switching
+export const getCurrentLanguage = () => {
+  return localStorage.getItem('selectedLanguage') || 'en'
+}
+
+export const getCurrentText = () => {
+  return TEXT[getCurrentLanguage()]
 }
 
 // Log configuration info (for debugging)

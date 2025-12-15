@@ -1,8 +1,10 @@
 "use client"
-import { TEXT, PRIMARY_MAIN, primary_50 } from "../utilities/constants"
+import { getCurrentText, PRIMARY_MAIN, primary_50 } from "../utilities/constants"
 import { Box, Button, Grid } from "@mui/material"
 
 const FAQExamples = ({ onPromptClick }) => {
+  const TEXT = getCurrentText()
+  
   return (
     <Box
       sx={{

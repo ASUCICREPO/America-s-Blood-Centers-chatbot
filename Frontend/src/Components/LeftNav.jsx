@@ -1,13 +1,14 @@
 "use client"
 
 import { Box, Typography, List, ListItem, ListItemText, useMediaQuery, IconButton } from "@mui/material"
-import { TEXT, ABOUT_US_TEXT, FAQ_TEXT, PRIMARY_MAIN } from "../utilities/constants"
+import { getCurrentText, ABOUT_US_TEXT, FAQ_TEXT, PRIMARY_MAIN } from "../utilities/constants"
 // Material-UI icons
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import CloseIcon from "@mui/icons-material/Close"
 
 function LeftNav({ showLeftNav, setLeftNav }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
+  const TEXT = getCurrentText()
 
   return (
     <Box

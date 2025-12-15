@@ -19,6 +19,7 @@ import {
   CHAT_BODY_BACKGROUND,
   PRIMARY_MAIN,
   CHAT_ENDPOINT,
+  getCurrentLanguage,
 } from "../utilities/constants";
 import FAQExamples from "./FAQExamples";
 
@@ -336,6 +337,7 @@ const getBotResponse = async (setMessageList, setProcessing, message) => {
   try {
     const requestBody = {
       message: message,
+      language: getCurrentLanguage(),
     };
 
     console.log("Sending stateless request:", requestBody);

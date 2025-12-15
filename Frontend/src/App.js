@@ -7,14 +7,27 @@ import AppHeader from "./Components/AppHeader"
 import LeftNav from "./Components/LeftNav"
 import ChatHeader from "./Components/ChatHeader"
 import ChatBody from "./Components/ChatBody"
+import AdminDashboard from "./Components/AdminDashboard"
 import useMediaQuery from "@mui/material/useMediaQuery"
-import { CssBaseline, Box, Drawer } from "@mui/material"
-import { CHAT_LEFT_PANEL_BACKGROUND, CHAT_BODY_BACKGROUND } from "./utilities/constants"
+import { CssBaseline, Box, Drawer, Fab } from "@mui/material"
+import AdminPanelSettingsIcon from "@mui/icons-material/AdminPanelSettings"
+import { CHAT_LEFT_PANEL_BACKGROUND, CHAT_BODY_BACKGROUND, PRIMARY_MAIN } from "./utilities/constants"
 
 function App() {
   const [showLeftNav, setLeftNav] = useState(true)
+  const [currentLanguage, setCurrentLanguage] = useState(() => {
+    return localStorage.getItem('selectedLanguage') || 'en'
+  })
+  const [showAdminDashboard, setShowAdminDashboard] = useState(false)
   const isMobile = useMediaQuery("(max-width:768px)")
   const isSmallScreen = useMediaQuery("(max-width:600px)")
+
+  const handleLanguageChange = (language) => {
+    setCurrentLanguage(language)
+    localStorage.setItem('selectedLanguage', language)
+    // Force re-render of components that use text constants
+    window.location.reload()
+  }
 
   // Close navbar automatically on small screens
   useEffect(() => {
@@ -30,7 +43,7 @@ function App() {
       <CssBaseline />
       <Box sx={{ display: "flex", flexDirection: "column", height: "100vh", overflow: "hidden" }}>
         {/* App Header */}
-        <AppHeader showLeftNav={showLeftNav} setLeftNav={setLeftNav} />
+        <AppHeader showLeftNav={showLeftNav} setLeftNav={setLeftNav} onLanguageChange={handleLanguageChange} />
 
         {/* Main Content Area */}
         <Box
@@ -105,6 +118,30 @@ function App() {
             </Box>
           </Box>
         </Box>
+
+        {/* Admin Dashboard FAB */}
+        <Fab
+          color="primary"
+          aria-label="admin"
+          sx={{
+            position: 'fixed',
+            bottom: 16,
+            right: 16,
+            backgroundColor: PRIMARY_MAIN,
+            '&:hover': {
+              backgroundColor: '#7F1D1D',
+            },
+          }}
+          onClick={() => setShowAdminDashboard(true)}
+        >
+          <AdminPanelSettingsIcon />
+        </Fab>
+
+        {/* Admin Dashboard Dialog */}
+        <AdminDashboard
+          open={showAdminDashboard}
+          onClose={() => setShowAdminDashboard(false)}
+        />
       </Box>
     </ThemeProvider>
   )

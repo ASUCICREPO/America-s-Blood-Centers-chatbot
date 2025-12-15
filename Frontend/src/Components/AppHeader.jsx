@@ -5,10 +5,12 @@ import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown"
 import MenuIcon from "@mui/icons-material/Menu"
 // Import America's Blood Centers logo from Assets folder
 import ABCLogo from "../Assets/abc-logo.svg"
-import { PRIMARY_MAIN,CHAT_BODY_BACKGROUND, CHAT_LEFT_PANEL_BACKGROUND, primary_50 } from "../utilities/constants"
+import LanguageSelector from "./LanguageSelector"
+import { PRIMARY_MAIN,CHAT_BODY_BACKGROUND, CHAT_LEFT_PANEL_BACKGROUND, primary_50, getCurrentText } from "../utilities/constants"
 
-function AppHeader({ showLeftNav, setLeftNav }) {
+function AppHeader({ showLeftNav, setLeftNav, onLanguageChange }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
+  const currentText = getCurrentText()
 
   return (
     <AppBar
@@ -63,6 +65,11 @@ function AppHeader({ showLeftNav, setLeftNav }) {
           >
             America's Blood Centers
           </Typography>
+        </Box>
+
+        {/* Right side with language selector */}
+        <Box sx={{ display: "flex", alignItems: "center" }}>
+          <LanguageSelector onLanguageChange={onLanguageChange} />
         </Box>
       </Toolbar>
     </AppBar>
