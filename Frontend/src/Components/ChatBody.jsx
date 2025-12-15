@@ -23,7 +23,7 @@ import {
 } from "../utilities/constants";
 import FAQExamples from "./FAQExamples";
 
-function ChatBody() {
+function ChatBody({ currentLanguage }) {
   const [messageList, setMessageList] = useState([]);
   const [processing, setProcessing] = useState(false);
   const [questionAsked, setQuestionAsked] = useState(false);
@@ -45,7 +45,7 @@ function ChatBody() {
     const newMessageBlock = createMessageBlock(message, "USER", "TEXT", "SENT");
     setMessageList([...messageList, newMessageBlock]);
 
-    await getBotResponse(setMessageList, setProcessing, message);
+    await getBotResponse(setMessageList, setProcessing, message, currentLanguage);
     setQuestionAsked(true);
   };
 
@@ -135,7 +135,7 @@ function ChatBody() {
             >
               Frequently Asked Questions
             </Typography>
-            <FAQExamples onPromptClick={handlePromptClick} />
+            <FAQExamples onPromptClick={handlePromptClick} currentLanguage={currentLanguage} />
           </Box>
         </Box>
       )}
@@ -156,7 +156,7 @@ function ChatBody() {
           borderTop: "1px solid rgba(0,0,0,0.05)",
         }}
       >
-        <ChatInput onSendMessage={handleSendMessage} processing={processing} />
+        <ChatInput onSendMessage={handleSendMessage} processing={processing} currentLanguage={currentLanguage} />
       </Box>
     </Box>
   );
@@ -333,11 +333,11 @@ function EnhancedLoadingIndicator() {
 export default ChatBody;
 
 // Stateless API integration function
-const getBotResponse = async (setMessageList, setProcessing, message) => {
+const getBotResponse = async (setMessageList, setProcessing, message, currentLanguage) => {
   try {
     const requestBody = {
       message: message,
-      language: getCurrentLanguage(),
+      language: currentLanguage || getCurrentLanguage(),
     };
 
     console.log("Sending stateless request:", requestBody);

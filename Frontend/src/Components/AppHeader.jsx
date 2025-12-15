@@ -1,16 +1,14 @@
 "use client"
 
-import { AppBar, Toolbar, Button, Box, Typography, useMediaQuery, IconButton } from "@mui/material"
-import KeyboardArrowDownIcon from "@mui/icons-material/KeyboardArrowDown"
+import { AppBar, Toolbar, Box, Typography, useMediaQuery, IconButton } from "@mui/material"
 import MenuIcon from "@mui/icons-material/Menu"
 // Import America's Blood Centers logo from Assets folder
 import ABCLogo from "../Assets/abc-logo.svg"
 import LanguageSelector from "./LanguageSelector"
-import { PRIMARY_MAIN,CHAT_BODY_BACKGROUND, CHAT_LEFT_PANEL_BACKGROUND, primary_50, getCurrentText } from "../utilities/constants"
+import { PRIMARY_MAIN,CHAT_BODY_BACKGROUND, CHAT_LEFT_PANEL_BACKGROUND, primary_50 } from "../utilities/constants"
 
 function AppHeader({ showLeftNav, setLeftNav, onLanguageChange }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
-  const currentText = getCurrentText()
 
   return (
     <AppBar

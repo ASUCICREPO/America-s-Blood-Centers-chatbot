@@ -3,12 +3,13 @@
 import { useState } from "react"
 import { TextField, Grid, IconButton, useMediaQuery, Box } from "@mui/material"
 import SendIcon from "@mui/icons-material/Send"
-import { TEXT, primary_50 } from "../utilities/constants"
+import { getCurrentText, primary_50 } from "../utilities/constants"
 
-function ChatInput({ onSendMessage, processing }) {
+function ChatInput({ onSendMessage, processing, currentLanguage }) {
   const [message, setMessage] = useState("")
   const [helperText, setHelperText] = useState("")
   const isSmallScreen = useMediaQuery("(max-width:600px)")
+  const TEXT = getCurrentText(currentLanguage)
 
   const handleTyping = (event) => {
     if (helperText) {

@@ -6,9 +6,9 @@ import { getCurrentText, ABOUT_US_TEXT, FAQ_TEXT, PRIMARY_MAIN } from "../utilit
 import ChevronRightIcon from "@mui/icons-material/ChevronRight"
 import CloseIcon from "@mui/icons-material/Close"
 
-function LeftNav({ showLeftNav, setLeftNav }) {
+function LeftNav({ showLeftNav, setLeftNav, currentLanguage }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
-  const TEXT = getCurrentText()
+  const TEXT = getCurrentText(currentLanguage)
 
   return (
     <Box

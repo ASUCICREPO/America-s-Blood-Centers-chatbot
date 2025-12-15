@@ -2,9 +2,9 @@ import Typography from "@mui/material/Typography"
 import { getCurrentText, HEADER_TEXT_GRADIENT } from "../utilities/constants"
 import { Box, Container, useMediaQuery } from "@mui/material"
 
-function ChatHeader() {
+function ChatHeader({ currentLanguage }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)")
-  const TEXT = getCurrentText()
+  const TEXT = getCurrentText(currentLanguage)
 
   return (
     <Container

@@ -15,15 +15,11 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
-  TextField,
   Alert
 } from '@mui/material'
-import { HEALTH_ENDPOINT } from '../utilities/constants'
 
 const AdminDashboard = ({ open, onClose }) => {
   const [logs, setLogs] = useState([])
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
 
   // Mock data for demonstration - in production, this would fetch from CloudWatch or a logging service
   const mockLogs = [
@@ -61,6 +57,7 @@ const AdminDashboard = ({ open, onClose }) => {
       // In production, fetch real logs from CloudWatch or logging service
       setLogs(mockLogs)
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [open])
 
   const formatTimestamp = (timestamp) => {

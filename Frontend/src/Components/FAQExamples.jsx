@@ -2,8 +2,8 @@
 import { getCurrentText, PRIMARY_MAIN, primary_50 } from "../utilities/constants"
 import { Box, Button, Grid } from "@mui/material"
 
-const FAQExamples = ({ onPromptClick }) => {
-  const TEXT = getCurrentText()
+const FAQExamples = ({ onPromptClick, currentLanguage }) => {
+  const TEXT = getCurrentText(currentLanguage)
   
   return (
     <Box

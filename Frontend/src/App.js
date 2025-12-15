@@ -25,8 +25,7 @@ function App() {
   const handleLanguageChange = (language) => {
     setCurrentLanguage(language)
     localStorage.setItem('selectedLanguage', language)
-    // Force re-render of components that use text constants
-    window.location.reload()
+    // No need to reload - components will re-render with new language
   }
 
   // Close navbar automatically on small screens
@@ -69,7 +68,7 @@ function App() {
                 },
               }}
             >
-              <LeftNav showLeftNav={true} setLeftNav={setLeftNav} />
+              <LeftNav showLeftNav={true} setLeftNav={setLeftNav} currentLanguage={currentLanguage} />
             </Drawer>
           ) : (
             <Box
@@ -81,7 +80,7 @@ function App() {
                 overflow: "hidden",
               }}
             >
-              <LeftNav showLeftNav={showLeftNav} setLeftNav={setLeftNav} />
+              <LeftNav showLeftNav={showLeftNav} setLeftNav={setLeftNav} currentLanguage={currentLanguage} />
             </Box>
           )}
 
@@ -103,7 +102,7 @@ function App() {
               position: "relative",
             }}
           >
-            <ChatHeader />
+            <ChatHeader currentLanguage={currentLanguage} />
             <Box
               sx={{
                 flex: "1 1 auto",
@@ -114,7 +113,7 @@ function App() {
                 minHeight: 0, // Allow flex items to shrink below content size
               }}
             >
-              <ChatBody />
+              <ChatBody currentLanguage={currentLanguage} />
             </Box>
           </Box>
         </Box>

@@ -104,11 +104,15 @@ export const TEXT = {
 
 // Default to English, but allow dynamic switching
 export const getCurrentLanguage = () => {
-  return localStorage.getItem('selectedLanguage') || 'en'
+  if (typeof window !== 'undefined') {
+    return localStorage.getItem('selectedLanguage') || 'en'
+  }
+  return 'en'
 }
 
-export const getCurrentText = () => {
-  return TEXT[getCurrentLanguage()]
+export const getCurrentText = (language = null) => {
+  const lang = language || getCurrentLanguage()
+  return TEXT[lang] || TEXT['en']
 }
 
 // Log configuration info (for debugging)
