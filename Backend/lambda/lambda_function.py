@@ -83,34 +83,7 @@ def lambda_handler(event, context):
                 })
             }
         
-        # Check if user is asking about blood center locations
-        blood_center_keywords = ['where can i donate', 'find blood center', 'blood center near', 'donation location', 'donde puedo donar']
-        if any(keyword in user_message.lower() for keyword in blood_center_keywords):
-            blood_center_response = {
-                'en': f"You can find a blood center near you using our Blood Center Locator. Visit: https://americasblood.org/for-donors/find-a-blood-center/ to find donation locations in your area.",
-                'es': f"Puede encontrar un centro de sangre cerca de usted usando nuestro Localizador de Centros de Sangre. Visite: https://americasblood.org/for-donors/find-a-blood-center/ para encontrar ubicaciones de donación en su área."
-            }
-            
-            return {
-                'statusCode': 200,
-                'headers': headers,
-                'body': json.dumps({
-                    "success": True,
-                    "message": blood_center_response.get(language, blood_center_response['en']),
-                    "sources": [{
-                        "title": "Blood Center Locator",
-                        "url": "https://americasblood.org/for-donors/find-a-blood-center/",
-                        "type": "WEB"
-                    }],
-                    "timestamp": datetime.utcnow().isoformat(),
-                    "metadata": {
-                        "sourceCount": 1,
-                        "responseLength": len(blood_center_response.get(language, blood_center_response['en'])),
-                        "applicationId": application_id,
-                        "language": language
-                    }
-                })
-            }
+        # No hardcoded responses - let AI handle all questions naturally
         
         # Get environment variables
         application_id = os.environ.get('QBUSINESS_APPLICATION_ID')

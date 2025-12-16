@@ -14,6 +14,7 @@ import ChatInput from "./ChatInput";
 import UserReply from "./UserReply";
 import BotReply from "./BotReply";
 import createMessageBlock from "../utilities/createMessageBlock";
+import { createTranslatableMessageBlock, translateMessageBlock } from "../utilities/translationService";
 import {
   ALLOW_FAQ,
   CHAT_BODY_BACKGROUND,
@@ -34,6 +35,38 @@ function ChatBody({ currentLanguage }) {
     scrollToBottom();
   }, [messageList]);
 
+  // Translate messages for display when language changes (but keep originals for admin)
+  useEffect(() => {
+    const translateMessages = async () => {
+      if (messageList.length > 0 && currentLanguage) {
+        const translatedMessages = await Promise.all(
+          messageList.map(async (msg) => {
+            // If message doesn't have original stored, store it now
+            if (!msg.originalMessage) {
+              msg.originalMessage = msg.message;
+              msg.originalLanguage = msg.originalLanguage || 'en';
+            }
+            
+            // Translate for display
+            return await translateMessageBlock(msg, currentLanguage);
+          })
+        );
+        
+        // Only update if translations actually changed
+        const hasChanges = translatedMessages.some((msg, index) => 
+          msg.message !== messageList[index]?.message
+        );
+        
+        if (hasChanges) {
+          setMessageList(translatedMessages);
+        }
+      }
+    };
+
+    translateMessages();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentLanguage]); // Only depend on currentLanguage
+
   const scrollToBottom = () => {
     if (messagesEndRef.current) {
       messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
@@ -42,7 +75,7 @@ function ChatBody({ currentLanguage }) {
 
   const handleSendMessage = async (message) => {
     setProcessing(true);
-    const newMessageBlock = createMessageBlock(message, "USER", "TEXT", "SENT");
+    const newMessageBlock = createTranslatableMessageBlock(message, "USER", "TEXT", "SENT");
     setMessageList([...messageList, newMessageBlock]);
 
     await getBotResponse(setMessageList, setProcessing, message, currentLanguage);
@@ -91,10 +124,16 @@ function ChatBody({ currentLanguage }) {
               }}
             >
               {msg.sentBy === "USER" ? (
-                <UserReply message={msg.message} />
+                <UserReply 
+                  message={msg.originalMessage || msg.message} 
+                  originalLanguage={msg.originalLanguage}
+                  currentLanguage={currentLanguage}
+                />
               ) : (
                 <BotReplyWithSources
-                  message={msg.message}
+                  message={msg.originalMessage || msg.message}
+                  originalLanguage={msg.originalLanguage}
+                  currentLanguage={currentLanguage}
                   sources={msg.sources}
                 />
               )}
@@ -163,14 +202,18 @@ function ChatBody({ currentLanguage }) {
 }
 
 // Enhanced BotReply component with actual URL display
-function BotReplyWithSources({ message, sources = [] }) {
+function BotReplyWithSources({ message, originalLanguage, currentLanguage, sources = [] }) {
   const isSmallScreen = useMediaQuery("(max-width:600px)");
   const [showSources, setShowSources] = useState(false);
 
   return (
     <Box>
       {/* Render the bot reply */}
-      <BotReply message={message} />
+      <BotReply 
+        message={message} 
+        originalLanguage={originalLanguage}
+        currentLanguage={currentLanguage}
+      />
 
       {/* If there are sources, show the toggle */}
       {sources && sources.length > 0 && (
@@ -360,7 +403,7 @@ const getBotResponse = async (setMessageList, setProcessing, message, currentLan
     console.log("API Response:", data);
 
     if (data.success) {
-      const botMessageBlock = createMessageBlock(
+      const botMessageBlock = createTranslatableMessageBlock(
         data.message,
         "BOT",
         "TEXT",
@@ -373,7 +416,7 @@ const getBotResponse = async (setMessageList, setProcessing, message, currentLan
     }
   } catch (error) {
     console.error("Error getting bot response:", error);
-    const errorMessageBlock = createMessageBlock(
+    const errorMessageBlock = createTranslatableMessageBlock(
       "Sorry, I'm having trouble responding right now. Please try again later.",
       "BOT",
       "TEXT",

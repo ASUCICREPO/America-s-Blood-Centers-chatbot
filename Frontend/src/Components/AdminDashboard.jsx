@@ -20,6 +20,7 @@ import {
 
 const AdminDashboard = ({ open, onClose }) => {
   const [logs, setLogs] = useState([])
+  const [showOriginal, setShowOriginal] = useState(true) // Show original messages by default
 
   // Mock data for demonstration - in production, this would fetch from CloudWatch or a logging service
   const mockLogs = [
@@ -28,6 +29,8 @@ const AdminDashboard = ({ open, onClose }) => {
       timestamp: new Date().toISOString(),
       question: "How many people donate blood?",
       response: "Approximately 6.8 million people in the United States donate blood annually...",
+      originalQuestion: "How many people donate blood?",
+      originalResponse: "Approximately 6.8 million people in the United States donate blood annually...",
       language: "en",
       sources: ["Blood-101-Snapshot-Americas-Blood-Supply-Donors.pdf"],
       responseTime: "1.2s"
@@ -37,6 +40,8 @@ const AdminDashboard = ({ open, onClose }) => {
       timestamp: new Date(Date.now() - 300000).toISOString(),
       question: "¿Dónde puedo donar sangre?",
       response: "Puede encontrar un centro de donación de sangre cerca de usted...",
+      originalQuestion: "¿Dónde puedo donar sangre?",
+      originalResponse: "Puede encontrar un centro de donación de sangre cerca de usted...",
       language: "es",
       sources: ["https://americasblood.org/for-donors/find-a-blood-center/"],
       responseTime: "0.9s"
@@ -46,6 +51,8 @@ const AdminDashboard = ({ open, onClose }) => {
       timestamp: new Date(Date.now() - 600000).toISOString(),
       question: "Am I eligible to donate blood?",
       response: "Blood donation eligibility depends on several factors...",
+      originalQuestion: "Am I eligible to donate blood?",
+      originalResponse: "Blood donation eligibility depends on several factors...",
       language: "en",
       sources: ["ABC-Promoting-Awareness-New-Eligibility-Criteria.pdf"],
       responseTime: "1.5s"
@@ -86,6 +93,23 @@ const AdminDashboard = ({ open, onClose }) => {
           <Alert severity="info">
             This dashboard shows recent chatbot interactions. In production, this would connect to CloudWatch logs for real-time monitoring.
           </Alert>
+          <Box sx={{ mt: 1, display: 'flex', alignItems: 'center', gap: 1 }}>
+            <Typography variant="body2">Show:</Typography>
+            <Button
+              size="small"
+              variant={showOriginal ? "contained" : "outlined"}
+              onClick={() => setShowOriginal(true)}
+            >
+              Original Messages
+            </Button>
+            <Button
+              size="small"
+              variant={!showOriginal ? "contained" : "outlined"}
+              onClick={() => setShowOriginal(false)}
+            >
+              Translated Messages
+            </Button>
+          </Box>
         </Box>
         
         <TableContainer component={Paper}>
@@ -107,12 +131,12 @@ const AdminDashboard = ({ open, onClose }) => {
                   <TableCell>{getLanguageChip(log.language)}</TableCell>
                   <TableCell sx={{ maxWidth: 200 }}>
                     <Typography variant="body2" noWrap>
-                      {log.question}
+                      {showOriginal ? (log.originalQuestion || log.question) : log.question}
                     </Typography>
                   </TableCell>
                   <TableCell sx={{ maxWidth: 300 }}>
                     <Typography variant="body2" noWrap>
-                      {log.response.substring(0, 100)}...
+                      {showOriginal ? (log.originalResponse || log.response).substring(0, 100) : log.response.substring(0, 100)}...
                     </Typography>
                   </TableCell>
                   <TableCell>

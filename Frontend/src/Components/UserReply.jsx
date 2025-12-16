@@ -1,8 +1,9 @@
 import { Grid, Avatar, Typography } from "@mui/material"
 // Import User Avatar from Assets folder
 import UserAvatar from "../Assets/UserAvatar.svg"
+import { translateMessage, getCurrentLanguage } from "../utilities/translationService"
 
-function UserReply({ message }) {
+function UserReply({ message, originalLanguage, currentLanguage }) {
   return (
     <Grid container direction="row" justifyContent="flex-end" alignItems="flex-end" sx={{ marginTop: "1.5rem" }}>
       <Grid
@@ -24,7 +25,7 @@ function UserReply({ message }) {
             whiteSpace: "pre-wrap",
           }}
         >
-          {message}
+          {translateMessage(message, currentLanguage || getCurrentLanguage(), originalLanguage)}
         </Typography>
       </Grid>
       <Grid item>
