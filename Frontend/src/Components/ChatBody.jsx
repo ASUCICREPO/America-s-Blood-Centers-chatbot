@@ -13,7 +13,6 @@ import {
 import ChatInput from "./ChatInput";
 import UserReply from "./UserReply";
 import BotReply from "./BotReply";
-import createMessageBlock from "../utilities/createMessageBlock";
 import { createTranslatableMessageBlock, translateMessageBlock } from "../utilities/translationService";
 import {
   ALLOW_FAQ,

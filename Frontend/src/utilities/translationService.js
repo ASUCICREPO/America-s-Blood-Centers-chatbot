@@ -30,15 +30,19 @@ export const translateText = async (text, targetLanguage, sourceLanguage = 'auto
         source: sourceLanguage === 'auto' ? 'auto' : sourceLanguage,
         target: targetLanguage,
         format: 'text'
-      })
+      }),
+      // Add timeout to prevent hanging
+      signal: AbortSignal.timeout(10000) // 10 second timeout
     })
 
     if (response.ok) {
       const data = await response.json()
       return data.translatedText || text
+    } else {
+      console.warn('Translation API returned error:', response.status)
     }
   } catch (error) {
-    console.warn('Translation failed, using original text:', error)
+    console.warn('Translation failed, using original text:', error.message)
   }
 
   // Fallback: return original text if translation fails

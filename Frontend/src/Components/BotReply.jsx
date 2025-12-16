@@ -2,9 +2,7 @@ import { Grid, Avatar, Typography } from "@mui/material"
 // Import Bot Avatar from Assets folder
 import BotAvatar from "../Assets/abc-bot-avatar.svg"
 import { BOTMESSAGE_BACKGROUND } from "../utilities/constants"
-import { translateMessage, getCurrentLanguage } from "../utilities/translationService"
-
-function BotReply({ message, originalLanguage, currentLanguage }) {
+function BotReply({ message }) {
   return (
     <Grid container direction="row" justifyContent="flex-start" alignItems="flex-end">
       <Grid item>
@@ -29,7 +27,7 @@ function BotReply({ message, originalLanguage, currentLanguage }) {
             whiteSpace: "pre-wrap",
           }}
         >
-          {translateMessage(message, currentLanguage || getCurrentLanguage(), originalLanguage)}
+          {message}
         </Typography>
       </Grid>
     </Grid>
