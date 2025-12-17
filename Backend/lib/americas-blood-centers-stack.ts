@@ -843,6 +843,75 @@ def handler(event, context):
       sourceArn: s3UploadRule.ruleArn,
     });
 
+    // ===== Scheduled Data Source Sync =====
+    // Lambda function to sync data sources daily at 2 PM EST
+    const scheduledSyncFunction = new lambda.Function(this, "ScheduledSyncFunction", {
+      runtime: lambda.Runtime.PYTHON_3_11,
+      handler: "scheduled-sync.lambda_handler",
+      code: lambda.Code.fromAsset("lambda", {
+        bundling: {
+          image: lambda.Runtime.PYTHON_3_11.bundlingImage,
+          command: [
+            "bash",
+            "-c",
+            "cp -r . /asset-output/ && cp scheduled-sync.py /asset-output/",
+          ],
+        },
+      }),
+      timeout: cdk.Duration.minutes(5),
+      memorySize: 256,
+      environment: {
+        APPLICATION_ID: qBusinessApp.attrApplicationId,
+        INDEX_ID: qBusinessIndex.attrIndexId,
+      },
+    });
+
+    // Grant permissions to sync data sources
+    scheduledSyncFunction.addToRolePolicy(
+      new iam.PolicyStatement({
+        effect: iam.Effect.ALLOW,
+        actions: [
+          "qbusiness:ListDataSources",
+          "qbusiness:StartDataSourceSyncJob",
+          "qbusiness:StopDataSourceSyncJob",
+          "qbusiness:DescribeDataSource",
+        ],
+        resources: [
+          qBusinessApp.attrApplicationArn,
+          qBusinessIndex.attrIndexArn,
+          `${qBusinessIndex.attrIndexArn}/data-source/*`,
+        ],
+      })
+    );
+
+    // EventBridge rule to trigger sync daily at 2 PM EST (7 PM UTC / 6 PM UTC during DST)
+    // Using 7 PM UTC (2 PM EST during standard time)
+    const dailySyncRule = new events.Rule(this, "DailyDataSourceSyncRule", {
+      schedule: events.Schedule.cron({
+        minute: "0",
+        hour: "19", // 7 PM UTC = 2 PM EST (standard time)
+        day: "*",
+        month: "*",
+        year: "*",
+      }),
+      description: "Trigger daily data source sync at 2 PM EST for blood supply status updates",
+    });
+
+    dailySyncRule.addTarget(
+      new targets.LambdaFunction(scheduledSyncFunction, {
+        event: events.RuleTargetInput.fromObject({
+          application_id: qBusinessApp.attrApplicationId,
+          index_id: qBusinessIndex.attrIndexId,
+          sync_type: "daily",
+        }),
+      })
+    );
+
+    scheduledSyncFunction.addPermission("AllowEventBridgeInvokeSync", {
+      principal: new iam.ServicePrincipal("events.amazonaws.com"),
+      sourceArn: dailySyncRule.ruleArn,
+    });
+
     new cdk.CfnOutput(this, "QBusinessApplicationId", {
       value: qBusinessApp.attrApplicationId,
       description: "Q Business Application ID",
@@ -891,6 +960,16 @@ def handler(event, context):
     new cdk.CfnOutput(this, "AmplifyDeployerFunctionName", {
       value: amplifyDeployer.functionName,
       description: "Amplify Deployer Lambda Function Name",
+    });
+
+    new cdk.CfnOutput(this, "ScheduledSyncFunctionName", {
+      value: scheduledSyncFunction.functionName,
+      description: "Scheduled Data Source Sync Lambda Function Name",
+    });
+
+    new cdk.CfnOutput(this, "DailySyncSchedule", {
+      value: "Daily at 2 PM EST (7 PM UTC)",
+      description: "Schedule for automatic data source sync",
     });
   }
 }

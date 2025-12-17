@@ -83,8 +83,6 @@ def lambda_handler(event, context):
                 })
             }
         
-        # No hardcoded responses - let AI handle all questions naturally
-        
         # Get environment variables
         application_id = os.environ.get('QBUSINESS_APPLICATION_ID')
         
@@ -113,11 +111,18 @@ def lambda_handler(event, context):
         
         # Extract and process source URLs with proper type detection
         sources = []
+        blood_center_locator_url = "https://americasblood.org/for-donors/find-a-blood-center/"
+        blood_center_locator_added = False
+        
         if 'sourceAttributions' in response:
             for attribution in response['sourceAttributions']:
                 if 'url' in attribution:
                     url = attribution.get("url")
                     title = attribution.get("title")
+                    
+                    # Check if blood center locator is already in sources
+                    if url == blood_center_locator_url:
+                        blood_center_locator_added = True
                     
                     # Determine if this is a document or web URL
                     is_document = (
@@ -133,6 +138,25 @@ def lambda_handler(event, context):
                         "url": url,
                         "type": "DOCUMENT" if is_document else "WEB"
                     })
+        
+        # Check if user is asking about blood donation locations
+        blood_center_keywords = [
+            'where can i donate', 'where to donate', 'find blood center', 
+            'blood center near', 'donation location', 'donate near me',
+            'donde puedo donar', 'dónde puedo donar', 'centro de sangre',
+            'find a center', 'locate blood center', 'donation site'
+        ]
+        
+        is_location_question = any(keyword in user_message.lower() for keyword in blood_center_keywords)
+        
+        # If asking about donation locations and link not already in sources, add it
+        if is_location_question and not blood_center_locator_added:
+            sources.insert(0, {  # Insert at beginning for prominence
+                "title": "Blood Center Locator - Find a Donation Location Near You",
+                "url": blood_center_locator_url,
+                "type": "WEB"
+            })
+            logger.info("Added blood center locator link to sources for location question")
 
         # Prepare the response
         chat_response = {
@@ -144,7 +168,8 @@ def lambda_handler(event, context):
                 "sourceCount": len(sources),
                 "responseLength": len(bot_response),
                 "applicationId": application_id,
-                "language": language
+                "language": language,
+                "bloodCenterLinkAdded": is_location_question and not blood_center_locator_added
             }
         }
 
