@@ -1,17 +1,26 @@
-const AmericasBloodCentersLogo = ({ color = "#B91C1C", width = 120, height = 80 }) => {
+const AmericasBloodCentersLogo = ({ color = "#FFFFFF", width = 60, height = 60 }) => {
   return (
-    <svg width={width} height={height} viewBox="0 0 120 80" fill="none" xmlns="http://www.w3.org/2000/svg">
-      {/* Blood drop shape */}
-      <path d="M60 15C60 15 45 30 45 45C45 53.284 51.716 60 60 60C68.284 60 75 53.284 75 45C75 30 60 15 60 15Z" fill={color} stroke="#7F1D1D" strokeWidth="2"/>
-      
-      {/* Cross symbol inside */}
-      <rect x="57" y="30" width="6" height="20" fill="white"/>
-      <rect x="50" y="37" width="20" height="6" fill="white"/>
-      
-      {/* Text "America's Blood Centers" below */}
-      <text x="60" y="72" fontFamily="Arial, sans-serif" fontSize="8" fontWeight="bold" textAnchor="middle" fill={color}>America's Blood Centers</text>
+    <svg 
+      width={width} 
+      height={height} 
+      viewBox="0 0 24 24" 
+      fill="none" 
+      xmlns="http://www.w3.org/2000/svg"
+    >
+      {/* Blood drop icon */}
+      <path 
+        d="M12 2C12 2 6 8 6 14C6 17.31 8.69 20 12 20C15.31 20 18 17.31 18 14C18 8 12 2 12 2Z" 
+        fill={color}
+        stroke={color}
+        strokeWidth="1"
+      />
+      {/* Heart symbol inside */}
+      <path 
+        d="M12 8C10.5 8 9.5 9 9.5 10.5C9.5 12 12 15 12 15S14.5 12 14.5 10.5C14.5 9 13.5 8 12 8Z" 
+        fill="#B71C1C"
+      />
     </svg>
-  )
-}
+  );
+};
 
-export default AmericasBloodCentersLogo
+export default AmericasBloodCentersLogo;

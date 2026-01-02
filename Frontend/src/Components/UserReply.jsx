@@ -1,35 +1,34 @@
-import { Grid, Avatar, Typography } from "@mui/material"
-// Import User Avatar from Assets folder
-import UserAvatar from "../Assets/UserAvatar.svg"
+import React from "react"
+import { Box, Typography } from "@mui/material"
+import { PRIMARY_MAIN, WHITE } from "../utilities/constants"
+
 function UserReply({ message }) {
   return (
-    <Grid container direction="row" justifyContent="flex-end" alignItems="flex-end" sx={{ marginTop: "1.5rem" }}>
-      <Grid
-        item
-        className="userMessage"
+    <Box sx={{ display: "flex", justifyContent: "flex-end", alignItems: "flex-start", mb: 2 }}>
+      {/* Message Content */}
+      <Box
         sx={{
-          backgroundColor: "#E7E3F0",
-          maxWidth: "75%", // Ensure maximum width
-          wordBreak: "break-word", // Break words to prevent overflow
-          overflowWrap: "break-word", // Ensure words wrap properly
-          whiteSpace: "pre-wrap", // Preserve whitespace but allow wrapping
+          maxWidth: "75%",
+          padding: "0.75rem 1rem",
+          backgroundColor: PRIMARY_MAIN,
+          color: WHITE,
+          borderRadius: "20px",
+          boxShadow: "0 2px 8px rgba(0, 97, 164, 0.2)",
         }}
       >
         <Typography
-          variant="body2"
+          variant="body1"
           sx={{
-            wordBreak: "break-word",
-            overflowWrap: "break-word",
+            lineHeight: 1.5,
             whiteSpace: "pre-wrap",
+            wordBreak: "break-word",
+            fontSize: "0.95rem",
           }}
         >
           {message}
         </Typography>
-      </Grid>
-      <Grid item>
-        <Avatar alt="User Avatar" src={UserAvatar} sx={{ width: 40, height: 40 }} />
-      </Grid>
-    </Grid>
+      </Box>
+    </Box>
   )
 }
 

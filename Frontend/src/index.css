@@ -1,318 +1,167 @@
-/* Import the Lato font */
-@import url("https://fonts.googleapis.com/css2?family=Lato:wght@400;700&display=swap");
-
-html,
-body {
-  height: 100%;
-  background-color: #fffff7;
-}
 body {
   margin: 0;
-  font-family: "Lato", -apple-system, BlinkMacSystemFont, "Segoe UI", "Roboto", "Oxygen", "Ubuntu", "Cantarell",
-    "Fira Sans", "Droid Sans", "Helvetica Neue", sans-serif;
+  font-family: 'Roboto', 'Helvetica', 'Arial', sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  overflow-x: hidden; /* Prevent horizontal scroll */
+  background-color: #F5F8FA;
 }
 
 code {
-  font-family: "Lato", source-code-pro, Menlo, Monaco, Consolas, "Courier New", monospace;
-}
-.appHideScroll {
-  overflow: hidden !important;
+  font-family: source-code-pro, Menlo, Monaco, Consolas, 'Courier New',
+    monospace;
 }
 
-.appScroll {
-  overflow: auto !important; /* Using 'auto' for better default behavior */
-}
-
-.appScrollY {
-  overflow-y: scroll;
-}
-
-.appScrollX {
-  overflow-x: scroll;
-}
-
-.appScroll::-webkit-scrollbar {
-  display: none;
-  width: 0.375rem;
-  height: 0.25rem;
-}
-
-.appScroll:hover::-webkit-scrollbar {
-  display: inline;
-}
-
-.appScroll::-webkit-scrollbar-thumb {
-  background-color: #d3d3d3;
-  border-radius: 1.5rem;
-}
-
-.appScroll::-webkit-scrollbar:hover {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-
-.appScrollHover::-webkit-scrollbar {
-  width: 0.5rem;
-  height: 0.5rem;
-}
-/* Width Classes */
-
-.appWidth100 {
-  width: 100%;
-}
-
-.appWidth50 {
-  width: 50%;
-}
-
-.appWidth75 {
-  width: 75%;
-}
-
-.appWidthInherit {
-  width: inherit;
-}
-
-.appWidthCustom {
-  width: var(--width);
-}
-
-/* Height Classes */
-
-.appHeight100 {
-  height: 100%;
-}
-.appFixedHeight100 {
-  height: calc(100vh - 5rem);
-}
-
-@media (max-width: 600px) {
-  .appFixedHeight100 {
-    height: calc(100vh - 4rem);
-  }
-}
-
-.appHeightInherit {
-  height: inherit;
-}
-
-.appHeightCustom {
-  height: var(--height);
-}
-
-/* Text Transform Classes */
-
-.appTextBold {
-  font-family: "Lato";
-  font-weight: bold; /* Removed !important for better specificity */
-}
-
-.appTextWeight400 {
-  font-family: "Lato";
-  font-weight: 400;
-}
-
-.appTextWeight500 {
-  font-family: "Lato";
-  font-weight: 500;
-}
-
-.appTextWeight600 {
-  font-family: "Lato";
-  font-weight: 600;
-}
-
-.appTextWeight700 {
-  font-family: "Lato";
-  font-weight: 700;
-}
-
-.appTextCapitalize {
-  text-transform: capitalize;
-}
-
-.appTextLowerCase {
-  text-transform: lowercase;
-}
-
-.appTextUpperCase {
-  text-transform: uppercase;
-}
-li {
-  color: white;
-}
-/* Text Align Classes */
-/* Update the user message styling */
-.MuiGrid-root.MuiGrid-item.userMessage {
-  margin-right: 0.5rem;
-  text-align: start;
-  padding: 10px !important;
-  max-width: 75%;
-  border-radius: 8px;
-  flex: none;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-}
-
-/* Update the bot message styling */
-.MuiGrid-root.MuiGrid-item.botMessage {
-  margin-left: 0.5rem;
-  text-align: start;
-  padding: 10px !important;
-  max-width: 75%;
-  border-radius: 8px;
-  flex: none;
-  word-break: break-word;
-  overflow-wrap: break-word;
-  white-space: pre-wrap;
-}
-
-.MuiGrid-root.MuiGrid-container.MuiGrid-item.sendMessageContainer {
-  /* Remove padding and margin from here - now handled in component */
-  border-radius: 40px;
-  width: 100%;
-  max-width: 100%;
-  box-sizing: border-box;
-}
-
-.MuiButton-root.attachmentButton {
-  border-radius: 50%;
-  margin-left: 8px;
-  padding: 0.5rem;
-  height: 3.5rem;
-  width: 3.5rem;
-  min-width: 0;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  position: relative;
-}
-
-p#USERCHATINPUT-helper-text {
-  padding-bottom: 0;
-  margin-top: 0;
-}
-.MuiTypography-h4.chatHeaderText {
-  text-align: start;
-  -webkit-background-clip: text;
-  background-clip: text;
-  font-style: normal;
-  font-weight: 600;
-}
-/* Base styles for .chatScrollContainer */
-.chatScrollContainer {
-  flex: 1;
-  overflow-y: auto;
-  padding-bottom: 1rem;
-  padding-top: 1.5rem; /* Add padding to increase gap between header and first message */
-  max-height: 100%; /* Ensure it doesn't overflow its container */
-}
-
-/* Add spacing between message groups in the chat container */
-.chatScrollContainer > div {
-  margin-bottom: 1.5rem;
-}
-
-/* for bot file check reply */
-
-@keyframes backgroundTransitionGreen {
-  0% {
-    background-color: #e1ebff; /* Initial blue color */
-  }
-  100% {
-    background-color: green; /* Final green color */
-  }
-}
-
-@keyframes backgroundTransitionRed {
-  0% {
-    background-color: #e1ebff; /* Initial blue color */
-  }
-  100% {
-    background-color: red; /* Final red color */
-  }
-}
-
-@keyframes loadingSpinner {
-  0% {
-    transform: rotate(0deg);
-  }
-  100% {
-    transform: rotate(360deg);
-  }
-}
-
-.loading {
-  display: inline-block;
-  width: 24px;
-  height: 24px;
-  border: 4px solid rgba(0, 0, 0, 0.1);
-  border-radius: 50%;
-  border-top-color: #75787b;
-  animation: loadingSpinner 1s linear infinite;
-}
-
-.file-status-box {
-  border: 1px solid #75787b;
-  border-radius: 1rem;
-  padding: 4px 12px;
-  margin-top: 4px;
-  font-style: italic;
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-
-.file-status-box.success {
-  animation: backgroundTransitionGreen 1s forwards;
-  background-color: green;
-  color: white;
-}
-
-.file-status-box.fail {
-  animation: backgroundTransitionRed 1s forwards;
-  background-color: red;
-  color: white;
-}
-
-/* Mobile-specific styles */
-@media (max-width: 600px) {
-  .MuiTypography-h4.chatHeaderText {
-    font-size: 1.25rem;
-  }
-
-  .chatScrollContainer {
-    padding-bottom: 0.5rem;
-    padding-top: 1rem;
-  }
-
-  .MuiGrid-root.MuiGrid-item.userMessage,
-  .MuiGrid-root.MuiGrid-item.botMessage {
-    max-width: 85%;
-    padding: 8px !important;
-  }
-
-  .chatScrollContainer > div {
-    margin-bottom: 1rem;
-  }
-}
-
-/* Make sure the app uses the full height on mobile */
 #root {
   min-height: 100vh;
-  display: flex;
-  flex-direction: column;
 }
 
-/* Add a new class to ensure the chat container has proper height */
-.chatContentContainer {
-  display: flex;
-  flex-direction: column;
-  height: 100%;
-  min-height: 0; /* Allow flex items to shrink below content size */
-  position: relative;
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #CC2345;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #08325C;
+}
+
+/* Remove default button focus outline */
+button:focus {
+  outline: none;
+}
+
+/* Smooth transitions for interactive elements */
+* {
+  transition: all 0.2s ease;
+}
+
+/* Message styling */
+.botMessage, .userMessage {
+  border-radius: 1rem;
+  padding: 0.75rem 1rem;
+  margin: 0.5rem 0;
+  max-width: 75%;
+  word-wrap: break-word;
+}
+
+.botMessage {
+  border-bottom-left-radius: 0.25rem;
+}
+
+.userMessage {
+  border-bottom-right-radius: 0.25rem;
+}
+
+/* Markdown content styling - optimized for chatbot */
+.markdown-content {
+  color: #333;
+  line-height: 1.6;
+  font-size: 0.875rem; /* 14px base font size */
+}
+
+.markdown-content h1,
+.markdown-content h2,
+.markdown-content h3,
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  color: #333;
+  font-weight: 600;
+}
+
+.markdown-content h1 {
+  font-size: 1.125rem; /* 18px */
+}
+
+.markdown-content h2 {
+  font-size: 1rem; /* 16px */
+}
+
+.markdown-content h3 {
+  font-size: 0.9375rem; /* 15px */
+}
+
+.markdown-content h4,
+.markdown-content h5,
+.markdown-content h6 {
+  font-size: 0.875rem; /* 14px */
+}
+
+.markdown-content ul,
+.markdown-content ol {
+  margin: 0.4rem 0;
+  padding-left: 1.25rem;
+}
+
+.markdown-content li {
+  margin-bottom: 0.2rem;
+  font-size: 0.875rem; /* 14px */
+}
+
+.markdown-content p {
+  margin-bottom: 0.6rem;
+  font-size: 0.875rem; /* 14px */
+}
+
+.markdown-content p:last-child {
+  margin-bottom: 0;
+}
+
+.markdown-content code {
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 3px;
+  font-size: 0.8125rem; /* 13px */
+  border: 1px solid #e0e0e0;
+}
+
+.markdown-content pre {
+  background-color: #f5f5f5;
+  padding: 0.75rem;
+  border-radius: 6px;
+  overflow-x: auto;
+  border: 1px solid #e0e0e0;
+  font-size: 0.8125rem; /* 13px */
+}
+
+.markdown-content pre code {
+  background: none;
+  padding: 0;
+  border: none;
+}
+
+.markdown-content blockquote {
+  border-left: 3px solid #B71C1C;
+  padding-left: 0.75rem;
+  margin: 0.6rem 0;
+  background-color: #f9f9f9;
+  padding: 0.5rem 0.75rem;
+  border-radius: 0 3px 3px 0;
+  font-style: italic;
+  font-size: 0.875rem; /* 14px */
+}
+
+.markdown-content a {
+  color: #B71C1C;
+  text-decoration: none;
+}
+
+.markdown-content a:hover {
+  text-decoration: underline;
+}
+
+.markdown-content strong {
+  font-weight: 600;
+}
+
+.markdown-content em {
+  font-style: italic;
 }

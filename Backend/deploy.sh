@@ -1,6 +1,9 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+# America's Blood Centers Bedrock Chatbot Deployment Script
+# Uses CodeBuild for cloud-based deployment to avoid local permission issues
+
 if [ -z "${GITHUB_URL:-}" ]; then
   read -rp "Enter source GitHub repository URL (e.g., https://github.com/OWNER/REPO): " GITHUB_URL
 fi
@@ -9,39 +12,23 @@ clean_url=${GITHUB_URL%.git}
 clean_url=${clean_url%/}
 
 if [ -z "${PROJECT_NAME:-}" ]; then
-  read -rp "Enter project name [default: americas-blood-centers]: " PROJECT_NAME
-  PROJECT_NAME=${PROJECT_NAME:-americas-blood-centers}
+  read -rp "Enter project name [default: blood-centers]: " PROJECT_NAME
+  PROJECT_NAME=${PROJECT_NAME:-blood-centers}
 fi
 
-if [ -z "${URL_FILES_PATH:-}" ]; then
-  read -rp "Enter path to URL files in Backend directory [default: data-sources]: " URL_FILES_PATH
-  URL_FILES_PATH=${URL_FILES_PATH:-data-sources}
+if [ -z "${MODEL_ID:-}" ]; then
+  read -rp "Enter Bedrock model ID [default: global.anthropic.claude-sonnet-4-5-20250929-v1:0]: " MODEL_ID
+  MODEL_ID=${MODEL_ID:-global.anthropic.claude-sonnet-4-5-20250929-v1:0}
 fi
 
-if [ -z "${AMPLIFY_APP_NAME:-}" ]; then
-  read -rp "Enter Amplify app name [default: ${PROJECT_NAME}-frontend]: " AMPLIFY_APP_NAME
-  AMPLIFY_APP_NAME=${AMPLIFY_APP_NAME:-${PROJECT_NAME}-frontend}
-fi
-
-if [ -z "${AMPLIFY_BRANCH_NAME:-}" ]; then
-  read -rp "Enter Amplify branch name [default: main]: " AMPLIFY_BRANCH_NAME
-  AMPLIFY_BRANCH_NAME=${AMPLIFY_BRANCH_NAME:-main}
+if [ -z "${EMBEDDING_MODEL_ID:-}" ]; then
+  read -rp "Enter embedding model ID [default: amazon.titan-embed-text-v1]: " EMBEDDING_MODEL_ID
+  EMBEDDING_MODEL_ID=${EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v1}
 fi
 
 if [ -z "${AWS_REGION:-}" ]; then
-  read -rp "Enter AWS region [default: us-west-2]: " AWS_REGION
-  AWS_REGION=${AWS_REGION:-us-west-2}
-fi
-
-AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
-if [ -z "${DATA_BUCKET_NAME:-}" ]; then
-  read -rp "Enter data bucket name [default: ${PROJECT_NAME}-data-${AWS_ACCOUNT}-${AWS_REGION}]: " DATA_BUCKET_NAME
-  DATA_BUCKET_NAME=${DATA_BUCKET_NAME:-${PROJECT_NAME}-data-${AWS_ACCOUNT}-${AWS_REGION}}
-fi
-
-if [ -z "${FRONTEND_BUCKET_NAME:-}" ]; then
-  read -rp "Enter frontend bucket name [default: ${PROJECT_NAME}-builds-${AWS_ACCOUNT}-${AWS_REGION}]: " FRONTEND_BUCKET_NAME
-  FRONTEND_BUCKET_NAME=${FRONTEND_BUCKET_NAME:-${PROJECT_NAME}-builds-${AWS_ACCOUNT}-${AWS_REGION}}
+  read -rp "Enter AWS region [default: us-east-1]: " AWS_REGION
+  AWS_REGION=${AWS_REGION:-us-east-1}
 fi
 
 if [ -z "${ACTION:-}" ]; then
@@ -53,6 +40,8 @@ if [[ "$ACTION" != "deploy" && "$ACTION" != "destroy" ]]; then
   echo "Invalid action: '$ACTION'. Choose 'deploy' or 'destroy'."
   exit 1
 fi
+
+AWS_ACCOUNT=$(aws sts get-caller-identity --query Account --output text)
 
 ROLE_NAME="${PROJECT_NAME}-codebuild-service-role"
 echo "Checking for IAM role: $ROLE_NAME"
@@ -91,13 +80,10 @@ echo "Creating CodeBuild project: $CODEBUILD_PROJECT_NAME"
 ENV_VARS=$(cat <<EOF
 [
   {"name": "PROJECT_NAME", "value": "$PROJECT_NAME", "type": "PLAINTEXT"},
-  {"name": "URL_FILES_PATH", "value": "$URL_FILES_PATH", "type": "PLAINTEXT"},
+  {"name": "MODEL_ID", "value": "$MODEL_ID", "type": "PLAINTEXT"},
+  {"name": "EMBEDDING_MODEL_ID", "value": "$EMBEDDING_MODEL_ID", "type": "PLAINTEXT"},
   {"name": "ACTION", "value": "$ACTION", "type": "PLAINTEXT"},
-  {"name": "CDK_DEFAULT_REGION", "value": "$AWS_REGION", "type": "PLAINTEXT"},
-  {"name": "AMPLIFY_APP_NAME", "value": "$AMPLIFY_APP_NAME", "type": "PLAINTEXT"},
-  {"name": "AMPLIFY_BRANCH_NAME", "value": "$AMPLIFY_BRANCH_NAME", "type": "PLAINTEXT"},
-  {"name": "DATA_BUCKET_NAME", "value": "$DATA_BUCKET_NAME", "type": "PLAINTEXT"},
-  {"name": "FRONTEND_BUCKET_NAME", "value": "$FRONTEND_BUCKET_NAME", "type": "PLAINTEXT"}
+  {"name": "CDK_DEFAULT_REGION", "value": "$AWS_REGION", "type": "PLAINTEXT"}
 ]
 EOF
 )
@@ -144,7 +130,7 @@ else
   exit 1
 fi
 
-echo "Starting deployment..."
+echo "Starting Bedrock deployment..."
 BUILD_ID=$(aws codebuild start-build \
   --project-name "$CODEBUILD_PROJECT_NAME" \
   --query 'build.id' \
@@ -160,21 +146,34 @@ else
 fi
 
 echo ""
+
 echo "=== Deployment Information ==="
 echo "Project Name: $PROJECT_NAME"
 echo "GitHub Repo URL: $GITHUB_URL"
-echo "Amplify App Name: $AMPLIFY_APP_NAME"
-echo "Amplify Branch Name: $AMPLIFY_BRANCH_NAME"
+echo "Model ID: $MODEL_ID"
+echo "Embedding Model: $EMBEDDING_MODEL_ID"
+echo "Region: $AWS_REGION"
 echo "Action: $ACTION"
 echo "Build ID: $BUILD_ID"
 echo ""
-echo "🚀 The deployment will:"
-echo "1. Deploy backend via CloudFormation"
-echo "2. Create/update Amplify app"
-echo "3. Build and deploy frontend"
-echo "4. Configure data sources for America's Blood Centers"
+echo "🚀 The Bedrock deployment will:"
+echo "1. Deploy backend infrastructure via CDK"
+echo "2. Create OpenSearch Serverless collection"
+echo "3. Create Bedrock Knowledge Base with dual data sources:"
+echo "   - S3 Data Source: PDFs with Bedrock Data Automation parser"
+echo "   - Web Crawler Data Source: Websites with automatic crawling"
+echo "4. Upload initial documents and trigger ingestion"
+echo "5. Configure Lambda functions with environment variables"
 echo ""
-echo "⏱️ Total deployment time: ~15-20 minutes"
+echo "📊 Data Sources:"
+echo "- PDF URLs: Read from Backend/data-sources/urls.txt"
+echo "- Website URLs: Crawled automatically from seed URLs"
+echo "- Manual PDFs: Upload to Backend/data-sources/ folder"
+echo ""
+echo "⏱️ Total deployment time: ~15-25 minutes"
 echo "📊 Monitor progress in CodeBuild console above"
+echo ""
+echo "💰 Expected monthly cost: \$8-20 (vs \$20+ for Q Business)"
+echo "🎯 Features: Bilingual support, blood center detection, daily sync"
 
 exit 0

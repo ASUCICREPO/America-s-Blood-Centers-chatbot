@@ -1,428 +1,370 @@
-"use client";
-
-import { useState, useRef, useEffect } from "react";
-import {
-  Tooltip,
-  Box,
+import { useState, useRef, useEffect } from "react"
+import { 
+  Box, 
+  TextField, 
+  IconButton, 
   Typography,
-  useMediaQuery,
-  Link,
-  Chip,
-  Collapse,
-} from "@mui/material";
-import ChatInput from "./ChatInput";
-import UserReply from "./UserReply";
-import BotReply from "./BotReply";
-import { createTranslatableMessageBlock, translateMessageBlock } from "../utilities/translationService";
-import {
-  ALLOW_FAQ,
-  CHAT_BODY_BACKGROUND,
+  CircularProgress,
+  ButtonGroup,
+  Button,
+  useMediaQuery
+} from "@mui/material"
+import { Send as SendIcon, Menu as MenuIcon } from "@mui/icons-material"
+import FAQExamples from "./FAQExamples"
+import BotReply from "./BotReply"
+import UserReply from "./UserReply"
+import { 
+  getCurrentText, 
+  WHITE, 
   PRIMARY_MAIN,
-  CHAT_ENDPOINT,
-  getCurrentLanguage,
-} from "../utilities/constants";
-import FAQExamples from "./FAQExamples";
+  LIGHT_BACKGROUND,
+  DARK_BLUE
+} from "../utilities/constants"
 
-function ChatBody({ currentLanguage }) {
-  const [messageList, setMessageList] = useState([]);
-  const [processing, setProcessing] = useState(false);
-  const [questionAsked, setQuestionAsked] = useState(false);
-  const messagesEndRef = useRef(null);
-  const isSmallScreen = useMediaQuery("(max-width:600px)");
-
-  useEffect(() => {
-    scrollToBottom();
-  }, [messageList]);
-
-  // Translate messages for display when language changes (but keep originals for admin)
-  useEffect(() => {
-    const translateMessages = async () => {
-      if (messageList.length > 0 && currentLanguage) {
-        const translatedMessages = await Promise.all(
-          messageList.map(async (msg) => {
-            // If message doesn't have original stored, store it now
-            if (!msg.originalMessage) {
-              msg.originalMessage = msg.message;
-              msg.originalLanguage = msg.originalLanguage || 'en';
-            }
-            
-            // Translate for display
-            return await translateMessageBlock(msg, currentLanguage);
-          })
-        );
-        
-        // Only update if translations actually changed
-        const hasChanges = translatedMessages.some((msg, index) => 
-          msg.message !== messageList[index]?.message
-        );
-        
-        if (hasChanges) {
-          setMessageList(translatedMessages);
-        }
-      }
-    };
-
-    translateMessages();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [currentLanguage]); // Only depend on currentLanguage
+function ChatBody({ currentLanguage, toggleLanguage, showLeftNav, setLeftNav }) {
+  const [messages, setMessages] = useState([])
+  const [inputValue, setInputValue] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const messagesEndRef = useRef(null)
+  const isSmallScreen = useMediaQuery("(max-width:600px)")
+  const TEXT = getCurrentText(currentLanguage)
 
   const scrollToBottom = () => {
-    if (messagesEndRef.current) {
-      messagesEndRef.current.scrollIntoView({ behavior: "smooth" });
+    // Use native page scroll instead of internal container scroll
+    window.scrollTo({ 
+      top: document.body.scrollHeight, 
+      behavior: "smooth" 
+    })
+  }
+
+  useEffect(() => {
+    scrollToBottom()
+  }, [messages])
+
+  const handleSendMessage = async (messageText = null) => {
+    const messageToSend = messageText || inputValue.trim()
+    if (!messageToSend || isLoading) return
+
+    setInputValue("")
+    setMessages(prev => [...prev, { type: "user", content: messageToSend }])
+    setIsLoading(true)
+
+    try {
+      // Replace with your actual API endpoint
+      const apiUrl = process.env.REACT_APP_API_BASE_URL || process.env.REACT_APP_CHAT_ENDPOINT
+      
+      const response = await fetch(apiUrl, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          message: messageToSend,
+          language: currentLanguage,
+        }),
+      })
+
+      if (!response.ok) {
+        throw new Error("Failed to get response")
+      }
+
+      const data = await response.json()
+      
+      setMessages(prev => [...prev, { 
+        type: "bot", 
+        content: data.message || "I'm sorry, I couldn't process your request.",
+        sources: data.sources || []
+      }])
+    } catch (error) {
+      setMessages(prev => [...prev, { 
+        type: "bot", 
+        content: "I'm sorry, there was an error processing your request. Please try again.",
+        sources: []
+      }])
+    } finally {
+      setIsLoading(false)
     }
-  };
+  }
 
-  const handleSendMessage = async (message) => {
-    setProcessing(true);
-    const newMessageBlock = createTranslatableMessageBlock(message, "USER", "TEXT", "SENT");
-    setMessageList([...messageList, newMessageBlock]);
+  const handleKeyDown = (event) => {
+    if (event.key === "Enter" && !event.shiftKey) {
+      event.preventDefault()
+      handleSendMessage()
+    }
+  }
 
-    await getBotResponse(setMessageList, setProcessing, message, currentLanguage);
-    setQuestionAsked(true);
-  };
-
-  const handlePromptClick = (prompt) => {
-    handleSendMessage(prompt);
-  };
+  const handleFAQClick = (question) => {
+    // Directly send the FAQ question as a message
+    handleSendMessage(question)
+  }
 
   return (
     <Box
       sx={{
+        minHeight: "100vh", // Use full viewport height
         display: "flex",
         flexDirection: "column",
-        height: "100%",
-        width: "100%",
-        position: "relative",
+        backgroundColor: LIGHT_BACKGROUND,
+        // Remove overflow hidden to allow natural page scroll
       }}
     >
-      {/* Empty state or messages area */}
-      {messageList.length > 0 || !ALLOW_FAQ || questionAsked ? (
-        // Chat messages area with proper scrolling
-        <Box
-          className="chatScrollContainer appScroll"
-          sx={{
-            flex: "1 1 auto",
-            overflowY: "auto",
-            scrollbarGutter: "stable",
-            paddingBottom: "1rem",
-            paddingTop: "0",
-            display: "flex",
-            flexDirection: "column",
-            maxHeight: "calc(100% - 100px)",
-          }}
-        >
-          {messageList.map((msg, index) => (
-            <Box
-              key={index}
-              mb={3}
-              sx={{
-                marginTop:
-                  index > 0 && messageList[index - 1].sentBy !== msg.sentBy
-                    ? "1.5rem"
-                    : "0.75rem",
-              }}
-            >
-              {msg.sentBy === "USER" ? (
-                <UserReply 
-                  message={msg.originalMessage || msg.message} 
-                  originalLanguage={msg.originalLanguage}
-                  currentLanguage={currentLanguage}
-                />
-              ) : (
-                <BotReplyWithSources
-                  message={msg.originalMessage || msg.message}
-                  originalLanguage={msg.originalLanguage}
-                  currentLanguage={currentLanguage}
-                  sources={msg.sources}
-                />
-              )}
-            </Box>
-          ))}
-
-          {/* Enhanced loading indicator when processing */}
-          {processing && <EnhancedLoadingIndicator />}
-
-          <div ref={messagesEndRef} />
-        </Box>
-      ) : (
-        // Empty state with FAQ section positioned higher
-        <Box
-          sx={{
-            display: "flex",
-            flexDirection: "column",
-            flex: "1 1 auto",
-            justifyContent: "center",
-            paddingBottom: "2rem",
-          }}
-        >
-          <Box
-            sx={{
-              width: "100%",
-              padding: "1rem 0",
-              marginBottom: "1rem",
-            }}
-          >
-            <Typography
-              variant="h6"
-              sx={{
-                textAlign: "center",
-                marginBottom: "1.5rem",
-                color: PRIMARY_MAIN,
-                fontSize: isSmallScreen ? "1rem" : "1.25rem",
-              }}
-            >
-              Frequently Asked Questions
-            </Typography>
-            <FAQExamples onPromptClick={handlePromptClick} currentLanguage={currentLanguage} />
-          </Box>
-        </Box>
-      )}
-
-      {/* Chat input area with fixed position */}
+      {/* Integrated Header with Logo and Language Toggle */}
       <Box
         sx={{
-          width: "100%",
-          backgroundColor: CHAT_BODY_BACKGROUND,
-          padding: "0.5rem 0 1rem",
-          position: "sticky",
-          bottom: 0,
-          left: 0,
-          right: 0,
-          zIndex: 10,
-          marginTop: "auto",
-          boxShadow: "0px -2px 10px rgba(0,0,0,0.05)",
-          borderTop: "1px solid rgba(0,0,0,0.05)",
+          padding: { xs: "0.5rem 1rem", sm: "0.75rem 1.5rem", md: "1rem 2rem" }, // Reduced top padding
+          paddingBottom: { xs: "0.5rem", sm: "1rem" },
         }}
       >
-        <ChatInput onSendMessage={handleSendMessage} processing={processing} currentLanguage={currentLanguage} />
-      </Box>
-    </Box>
-  );
-}
-
-// Enhanced BotReply component with actual URL display
-function BotReplyWithSources({ message, originalLanguage, currentLanguage, sources = [] }) {
-  const isSmallScreen = useMediaQuery("(max-width:600px)");
-  const [showSources, setShowSources] = useState(false);
-
-  return (
-    <Box>
-      {/* Render the bot reply */}
-      <BotReply 
-        message={message} 
-        originalLanguage={originalLanguage}
-        currentLanguage={currentLanguage}
-      />
-
-      {/* If there are sources, show the toggle */}
-      {sources && sources.length > 0 && (
+        {/* Top Row: Logo (left) and Language Toggle (right) */}
         <Box
           sx={{
-            marginTop: "0.5rem",
-            marginLeft: isSmallScreen ? "1rem" : "3rem",
+            display: "flex",
+            justifyContent: "space-between",
+            alignItems: "center",
+            mb: { xs: 1, sm: 1.5 },
+            ml: !isSmallScreen && !showLeftNav ? "50px" : "10px", // Add left margin when floating menu is visible
           }}
         >
-          {/* Toggle text: click to expand/collapse */}
-          <Typography
-            variant="body2"
-            onClick={() => setShowSources((prev) => !prev)}
+          {/* Left side: Mobile Menu + Logo */}
+          <Box sx={{ display: "flex", alignItems: "center", gap: 1 }}>
+            {/* Mobile Menu Button */}
+            {isSmallScreen && (
+              <IconButton
+                onClick={() => setLeftNav && setLeftNav(true)}
+                sx={{
+                  color: PRIMARY_MAIN,
+                  padding: "5px",
+                }}
+              >
+                <MenuIcon />
+              </IconButton>
+            )}
+            
+            <img
+              src="/logo.png"
+              alt="America's Blood Centers"
+              width={isSmallScreen ? "80" : "250"} // Increased from 60/80 to 80/120
+              height={isSmallScreen ? "60" : "90"} // Increased from 45/60 to 60/90
+              style={{ objectFit: "contain" }}
+            />
+          </Box>
+
+          {/* Right side: Language Toggle */}
+          <ButtonGroup
+            variant="outlined"
+            size="small"
             sx={{
-              fontWeight: "bold",
-              color: PRIMARY_MAIN,
-              fontSize: isSmallScreen ? "0.8rem" : "0.875rem",
-              cursor: "pointer",
-              userSelect: "none",
-              display: "inline-block",
-              "&:hover": { textDecoration: "underline" },
+              "& .MuiButton-root": {
+                minWidth: "40px",
+                padding: "6px 12px",
+                fontSize: "0.875rem",
+                fontWeight: "bold",
+                border: `1px solid ${DARK_BLUE}`,
+                color: DARK_BLUE,
+                backgroundColor: WHITE,
+                "&:hover": {
+                  backgroundColor: DARK_BLUE,
+                  color: WHITE,
+                },
+              },
+              "& .MuiButton-root.active": {
+                backgroundColor: DARK_BLUE,
+                color: WHITE,
+                "&:hover": {
+                  backgroundColor: DARK_BLUE,
+                },
+              },
             }}
           >
-            {showSources
-              ? `Hide Sources (${sources.length})`
-              : `Show Sources (${sources.length})`}
-          </Typography>
-
-          {/* Expand/collapse block */}
-          <Collapse in={showSources}>
-            <Box sx={{ marginTop: "0.5rem" }}>
-              {/* Only one section: chips showing domain; tooltip shows full URL */}
-              <Box sx={{ display: "flex", flexWrap: "wrap", gap: 0.5 }}>
-                {sources.map((source, index) => {
-                  const isDocumentSource = source.type === "DOCUMENT";
-
-                  // For documents, show the title or filename; for web URLs, show the full URL
-                  let label;
-                  if (isDocumentSource) {
-                    label = source.title || source.url.split("/").pop();
-                  } else {
-                    // Show the full URL for web sources
-                    label = source.url;
-                  }
-
-                  // Handle click for documents vs web URLs
-                  const handleClick = (e) => {
-                    if (isDocumentSource) {
-                      e.preventDefault();
-                      // For S3 documents, open directly (now that bucket is public)
-                      window.open(source.url, "_blank");
-                    }
-                  };
-
-                  return (
-                    <Tooltip
-                      key={index}
-                      title={
-                        isDocumentSource
-                          ? `Document: ${source.title || "Click to view"}`
-                          : source.url
-                      }
-                    >
-                      <Chip
-                        label={label}
-                        component={isDocumentSource ? "div" : Link}
-                        href={!isDocumentSource ? source.url : undefined}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        onClick={isDocumentSource ? handleClick : undefined}
-                        clickable
-                        size="small"
-                        sx={{
-                          backgroundColor: PRIMARY_MAIN,
-                          color: "white",
-                          fontSize: isSmallScreen ? "0.7rem" : "0.75rem",
-                          height: isSmallScreen ? "24px" : "28px",
-                          whiteSpace: "nowrap",
-                          cursor: "pointer",
-                          "&:hover": {
-                            backgroundColor: "#2a1659",
-                          },
-                        }}
-                      />
-                    </Tooltip>
-                  );
-                })}
-              </Box>
-            </Box>
-          </Collapse>
+            <Button
+              className={currentLanguage === "en" ? "active" : ""}
+              onClick={() => currentLanguage !== "en" && toggleLanguage()}
+            >
+              EN
+            </Button>
+            <Button
+              className={currentLanguage === "es" ? "active" : ""}
+              onClick={() => currentLanguage !== "es" && toggleLanguage()}
+            >
+              ES
+            </Button>
+          </ButtonGroup>
         </Box>
-      )}
-    </Box>
-  );
-}
+      </Box>
 
-// Simple Loading Indicator with time-based text changes and animated dots
-function EnhancedLoadingIndicator() {
-  const [currentMessage, setCurrentMessage] = useState("Processing");
-  const [dots, setDots] = useState("");
-  const [startTime] = useState(Date.now());
-  const isSmallScreen = useMediaQuery("(max-width:600px)");
-
-  useEffect(() => {
-    const updateMessage = () => {
-      const elapsed = Date.now() - startTime;
-
-      if (elapsed < 5000) {
-        // 0-5 seconds: Processing
-        setCurrentMessage("Processing");
-      } else if (elapsed < 10000) {
-        // 5-10 seconds: Analyzing
-        setCurrentMessage("Analyzing");
-      } else {
-        // 10+ seconds: Thinking
-        setCurrentMessage("Thinking");
-      }
-    };
-
-    // Update immediately
-    updateMessage();
-
-    // Check every 100ms for smooth transitions
-    const interval = setInterval(updateMessage, 100);
-
-    return () => clearInterval(interval);
-  }, [startTime]);
-
-  // Animate dots every 500ms
-  useEffect(() => {
-    const dotsInterval = setInterval(() => {
-      setDots((prev) => {
-        if (prev === "...") return "";
-        return prev + ".";
-      });
-    }, 500);
-
-    return () => clearInterval(dotsInterval);
-  }, []);
-
-  return (
-    <Box
-      sx={{ marginLeft: isSmallScreen ? "1rem" : "3rem", marginBottom: "1rem" }}
-    >
-      <Typography
-        variant="body2"
+      {/* Messages Area - Use full viewport height with native scroll */}
+      <Box
         sx={{
-          color: PRIMARY_MAIN,
-          fontStyle: "italic",
-          fontSize: isSmallScreen ? "0.875rem" : "1rem",
+          flex: 1,
+          display: "flex",
+          flexDirection: "column",
+          minHeight: 0,
+          // Remove overflow hidden to use native page scroll
         }}
       >
-        {currentMessage}
-        {dots}
-      </Typography>
+        {/* Content Container */}
+        <Box
+          sx={{
+            flex: 1,
+            maxWidth: "1200px",
+            margin: "0 auto",
+            width: "100%",
+            // padding: { xs: "0.75rem", sm: "1rem", md: "1.5rem 2rem" },
+            padding: { xs: "0 rem", sm: "0rem", md: "0rem 0rem" },
+            paddingBottom: 0,
+          }}
+        >
+          {/* Show Welcome Content only when no messages */}
+          {messages.length === 0 && (
+            <Box sx={{ 
+              paddingTop: { xs: "0rem", sm: "0rem", md: "0rem" }, // Reduced from 2rem/3rem/4rem
+            }}>
+              {/* Welcome Title and Subtitle */}
+              <Box sx={{ 
+                textAlign: "center", 
+                mb: { xs: 3, sm: 4, md: 5 },
+                px: { xs: 2, sm: 3, md: 4 } // Match FAQExamples padding
+              }}>
+                <Typography
+                  variant="h2"
+                  sx={{
+                    fontSize: { xs: "2rem", sm: "2.5rem", md: "3rem" },
+                    fontWeight: "bold",
+                    color: DARK_BLUE,
+                    mb: 2,
+                    fontFamily: "'Roboto', sans-serif",
+                  }}
+                >
+                  {currentLanguage === "en" ? "America's Blood Centers" : "Centros de Sangre de América"}
+                </Typography>
+                <Typography
+                  variant="h6"
+                  sx={{
+                    fontSize: { xs: "1rem", sm: "1.1rem", md: "1.25rem" },
+                    color: "#666",
+                    maxWidth: "600px",
+                    margin: "0 auto",
+                    lineHeight: 1.5,
+                  }}
+                >
+                  {currentLanguage === "en" 
+                    ? "Learn about the blood supply, eligibility, and how you can save lives."
+                    : "Aprende sobre el suministro de sangre, elegibilidad y cómo puedes salvar vidas."
+                  }
+                </Typography>
+              </Box>
+              
+              <FAQExamples 
+                currentLanguage={currentLanguage}
+                onFAQClick={handleFAQClick}
+              />
+            </Box>
+          )}
+
+          {/* Chat Messages - Simple layout without nested scroll */}
+          {messages.length > 0 && (
+            <Box sx={{ paddingBottom: "1rem" }}>
+              {messages.map((message, index) => (
+                <Box key={index} sx={{ mb: 2 }}>
+                  {message.type === "user" ? (
+                    <UserReply message={message.content} />
+                  ) : (
+                    <BotReply 
+                      message={message.content} 
+                      sources={message.sources}
+                      currentLanguage={currentLanguage}
+                    />
+                  )}
+                </Box>
+              ))}
+
+              {/* Loading Indicator */}
+              {isLoading && (
+                <Box sx={{ display: "flex", justifyContent: "center", my: 2 }}>
+                  <CircularProgress size={24} sx={{ color: PRIMARY_MAIN }} />
+                </Box>
+              )}
+
+              <div ref={messagesEndRef} />
+            </Box>
+          )}
+        </Box>
+      </Box>
+
+      {/* Input Area - Seamlessly integrated */}
+      <Box
+        sx={{
+          backgroundColor: LIGHT_BACKGROUND, // Same as ChatBody background
+          padding: { xs: "0.75rem", sm: "1rem", md: "1.5rem 2rem" }, // More responsive padding
+          paddingTop: messages.length === 0 ? { xs: "0.5rem", sm: "0.75rem", md: "1rem" } : { xs: "1rem", sm: "1.5rem", md: "2rem" }, // Responsive dynamic padding
+          flexShrink: 0, // Don't shrink the input area
+        }}
+      >
+        <Box sx={{ 
+          maxWidth: "1200px", 
+          margin: "0 auto",
+          position: "relative",
+        }}>
+          <TextField
+            fullWidth
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={handleKeyDown} // Use onKeyDown instead of deprecated onKeyPress
+            placeholder={TEXT.CHAT_PLACEHOLDER}
+            variant="outlined"
+            disabled={isLoading}
+            sx={{
+              "& .MuiOutlinedInput-root": {
+                borderRadius: "25px",
+                backgroundColor: WHITE,
+                border: "1px solid #E0E0E0",
+                paddingRight: { xs: "50px", sm: "60px" }, // Responsive padding for send button
+                "& fieldset": {
+                  border: "none",
+                },
+                "&:hover": {
+                  backgroundColor: WHITE,
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.1)",
+                },
+                "&.Mui-focused": {
+                  backgroundColor: WHITE,
+                  boxShadow: `0 0 0 2px ${PRIMARY_MAIN}20, 0 2px 8px rgba(0,0,0,0.1)`,
+                },
+              },
+              "& .MuiOutlinedInput-input": {
+                padding: { xs: "12px 16px", sm: "14px 20px" }, // Responsive padding
+                fontSize: { xs: "0.9rem", sm: "1rem" }, // Responsive font size
+              },
+            }}
+          />
+          <IconButton
+            onClick={() => handleSendMessage()}
+            disabled={!inputValue.trim() || isLoading}
+            sx={{
+              backgroundColor: PRIMARY_MAIN,
+              color: WHITE,
+              width: { xs: "40px", sm: "44px" }, // Responsive size
+              height: { xs: "40px", sm: "44px" }, // Responsive size
+              position: "absolute",
+              right: { xs: "3px", sm: "4px" }, // Responsive positioning
+              top: "50%",
+              transform: "translateY(-50%)",
+              "&:hover": {
+                backgroundColor: PRIMARY_MAIN,
+                opacity: 0.9,
+              },
+              "&:disabled": {
+                backgroundColor: "#E0E0E0",
+                color: "#999",
+              },
+            }}
+          >
+            <SendIcon sx={{ fontSize: { xs: "1rem", sm: "1.2rem" } }} /> {/* Responsive icon size */}
+          </IconButton>
+        </Box>
+      </Box>
     </Box>
-  );
+  )
 }
 
-export default ChatBody;
-
-// Stateless API integration function
-const getBotResponse = async (setMessageList, setProcessing, message, currentLanguage) => {
-  try {
-    const requestBody = {
-      message: message,
-      language: currentLanguage || getCurrentLanguage(),
-    };
-
-    console.log("Sending stateless request:", requestBody);
-
-    const response = await fetch(CHAT_ENDPOINT, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(requestBody),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("API Error:", errorText);
-      throw new Error(`HTTP error! status: ${response.status}`);
-    }
-
-    const data = await response.json();
-    console.log("API Response:", data);
-
-    if (data.success) {
-      const botMessageBlock = createTranslatableMessageBlock(
-        data.message,
-        "BOT",
-        "TEXT",
-        "RECEIVED"
-      );
-      botMessageBlock.sources = data.sources || [];
-      setMessageList((prevList) => [...prevList, botMessageBlock]);
-    } else {
-      throw new Error(data.error || "Failed to get response");
-    }
-  } catch (error) {
-    console.error("Error getting bot response:", error);
-    const errorMessageBlock = createTranslatableMessageBlock(
-      "Sorry, I'm having trouble responding right now. Please try again later.",
-      "BOT",
-      "TEXT",
-      "RECEIVED"
-    );
-    setMessageList((prevList) => [...prevList, errorMessageBlock]);
-  } finally {
-    setProcessing(false);
-  }
-};
+export default ChatBody

@@ -1,0 +1,14 @@
+# America's Blood Centers - Web URLs and PDFs for Knowledge Base
+# These URLs will be scraped and processed for the chatbot
+
+# Main websites
+https://americasblood.org
+https://donatingblood.org
+
+# Blood donation information
+https://americasblood.org/for-donors/americas-blood-supply/
+https://americasblood.org/for-donors/find-a-blood-center/
+
+# FAQs and Information
+https://americasblood.org/one-pagers-faqs/frequently-asked-questions-covid-vaccines-and-blood-donation/
+

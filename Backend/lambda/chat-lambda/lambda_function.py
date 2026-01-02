@@ -1,0 +1,992 @@
+"""
+America's Blood Centers Chatbot - Bedrock Implementation
+Lambda function for handling chat requests using Bedrock Knowledge Base and Foundation Models
+"""
+
+import json
+import logging
+import os
+import re
+from typing import Dict, Any, List
+import boto3
+from datetime import datetime, timedelta
+import uuid
+from decimal import Decimal
+
+# Configure logging
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
+
+# Initialize AWS clients
+bedrock_runtime = boto3.client('bedrock-runtime')
+bedrock_agent_runtime = boto3.client('bedrock-agent-runtime')
+s3_client = boto3.client('s3')
+dynamodb = boto3.resource('dynamodb')
+
+# Environment variables
+KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID')
+MODEL_ID = os.environ.get('MODEL_ID', 'global.anthropic.claude-sonnet-4-5-20250929-v1:0')
+MAX_TOKENS = int(os.environ.get('MAX_TOKENS', '1000'))
+TEMPERATURE = float(os.environ.get('TEMPERATURE', '0.0'))
+CHAT_HISTORY_TABLE = os.environ.get('CHAT_HISTORY_TABLE', 'BloodCentersChatHistory')
+
+# Initialize DynamoDB table
+try:
+    chat_table = dynamodb.Table(CHAT_HISTORY_TABLE)
+    logger.info(f"Successfully initialized DynamoDB table: {CHAT_HISTORY_TABLE}")
+except Exception as e:
+    logger.error(f"Could not initialize DynamoDB table {CHAT_HISTORY_TABLE}: {e}")
+    chat_table = None
+
+def convert_dynamodb_item(item: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Convert DynamoDB item with Decimal objects to JSON-serializable format
+    """
+    def convert_value(value):
+        if isinstance(value, Decimal):
+            # Convert Decimal to int if it's a whole number, otherwise float
+            return int(value) if value % 1 == 0 else float(value)
+        elif isinstance(value, dict):
+            return {k: convert_value(v) for k, v in value.items()}
+        elif isinstance(value, list):
+            return [convert_value(v) for v in value]
+        else:
+            return value
+    
+    return {
+        'id': item.get('conversation_id'),
+        'sessionId': item.get('session_id'),
+        'question': item.get('question', ''),
+        'answer': item.get('answer', ''),
+        'timestamp': item.get('timestamp'),
+        'date': item.get('date'),
+        'language': item.get('language', 'en'),
+        'sources': convert_value(item.get('sources', []))
+    }
+
+def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
+    """
+    Main Lambda handler for Bedrock-based chat
+    """
+
+    # Set response headers for CORS
+    headers = {
+        'Content-Type': 'application/json',
+        'Access-Control-Allow-Origin': '*',
+        'Access-Control-Allow-Methods': 'GET, POST, OPTIONS',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Amz-Date, X-Api-Key, X-Amz-Security-Token',
+    }
+
+    try:
+        # Get HTTP method
+        # Get HTTP method and path
+        http_method = event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method')
+        path = event.get('path', '') or event.get('requestContext', {}).get('http', {}).get('path', '')
+
+        # Handle preflight OPTIONS request
+        if http_method == 'OPTIONS':
+            return {
+                'statusCode': 200,
+                'headers': headers,
+                'body': json.dumps({'message': 'CORS preflight successful'})
+            }
+
+        # Handle admin endpoints
+        if '/admin/' in path:
+            return handle_admin_request(event, headers)
+        
+        # Handle health check (GET requests)
+        if http_method == 'GET':
+            return {
+                'statusCode': 200,
+                'headers': headers,
+                'body': json.dumps({
+                    'status': 'healthy',
+                    'service': 'America\'s Blood Centers Bedrock Chatbot',
+                    'timestamp': datetime.utcnow().isoformat(),
+                    'model': MODEL_ID,
+                    'knowledge_base': KNOWLEDGE_BASE_ID
+                })
+            }
+
+        # Handle chat requests (POST)
+        if http_method != 'POST':
+            return {
+                'statusCode': 405,
+                'headers': headers,
+                'body': json.dumps({
+                    'error': 'Method not allowed. Use POST for chat requests or GET for health checks.',
+                    'success': False
+                })
+            }
+
+        # Parse request body
+        if 'body' in event:
+            if isinstance(event['body'], str):
+                body = json.loads(event['body'])
+            else:
+                body = event['body']
+        else:
+            raise ValueError("Request body is missing")
+
+        # Extract parameters
+        user_message = body.get('message', '').strip()
+        language = body.get('language', 'en')
+        session_id = body.get('sessionId', str(uuid.uuid4()))
+
+        if not user_message:
+            return {
+                'statusCode': 400,
+                'headers': headers,
+                'body': json.dumps({
+                    'error': 'Message is required',
+                    'success': False
+                })
+            }
+
+        logger.info(f"Processing chat request (language: {language})")
+
+        # Step 1: Retrieve relevant context from Knowledge Base
+        retrieve_response = bedrock_agent_runtime.retrieve(
+            knowledgeBaseId=KNOWLEDGE_BASE_ID,
+            retrievalQuery={'text': user_message},
+            retrievalConfiguration={
+                'vectorSearchConfiguration': {
+                    'numberOfResults': 20,
+                    'overrideSearchType': 'SEMANTIC'
+                }
+            }
+        )
+
+        context_results = retrieve_response.get('retrievalResults', [])
+        sources = extract_sources(context_results)
+
+        if len(sources) == 0 and len(context_results) > 0:
+            logger.warning(f"No sources extracted despite having {len(context_results)} context results!")
+
+        # Step 2: Generate response using Bedrock LLM
+        response_data = generate_response(user_message, context_results, language)
+
+        # Step 3: Process response for markdown formatting
+        processed_response = process_markdown_response(response_data['response'])
+
+        # Step 4: Add blood center link if asking about donation locations
+        sources = add_blood_center_link_if_needed(user_message, sources)
+
+        # Step 5: Save conversation to DynamoDB
+        conversation_id = save_conversation(session_id, user_message, processed_response, language, sources)
+        
+        # Prepare final response
+        chat_response = {
+            "success": True,
+            "message": processed_response,
+            "sources": sources,
+            "timestamp": datetime.utcnow().isoformat(),
+            "conversationId": conversation_id,
+            "sessionId": session_id,
+            "metadata": {
+                "sourceCount": len(sources),
+                "responseLength": len(processed_response),
+                "model": MODEL_ID,
+                "language": language,
+                "retrievalResults": len(context_results),
+                "hasMarkdown": has_markdown_formatting(processed_response)
+            }
+        }
+
+        # Log what's actually being sent to frontend
+        logger.info(f"Response generated successfully with {len(sources)} sources")
+
+        return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': json.dumps(chat_response)
+        }
+
+    except Exception as e:
+        logger.error(f"Error processing request: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({
+                'error': 'Internal server error',
+                'success': False,
+                'details': str(e) if os.environ.get('DEBUG') == 'true' else None
+            })
+        }
+
+def handle_admin_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Handle admin-specific requests
+    """
+    try:
+        path = event.get('path', '') or event.get('requestContext', {}).get('http', {}).get('path', '')
+        http_method = event.get('httpMethod') or event.get('requestContext', {}).get('http', {}).get('method')
+        
+        # Parse query parameters
+        query_params = event.get('queryStringParameters') or {}
+        
+        if '/admin/conversations' in path and http_method == 'GET':
+            return get_conversations(query_params, headers)
+        elif '/admin/sync' in path and http_method == 'POST':
+            return handle_sync_request(event, headers)
+        elif '/admin/status' in path and http_method == 'GET':
+            return get_system_status(headers)
+        else:
+            return {
+                'statusCode': 404,
+                'headers': headers,
+                'body': json.dumps({
+                    'error': 'Admin endpoint not found',
+                    'success': False
+                })
+            }
+    except Exception as e:
+        logger.error(f"Error handling admin request: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({
+                'error': 'Internal server error',
+                'success': False,
+                'details': str(e) if os.environ.get('DEBUG') == 'true' else None
+            })
+        }
+
+def get_conversations(query_params: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Get chat conversations with page-based pagination and filtering
+    """
+    try:
+        if not chat_table:
+            return {
+                'statusCode': 503,
+                'headers': headers,
+                'body': json.dumps({
+                    'error': 'Chat history not available',
+                    'success': False
+                })
+            }
+        
+        # Parse query parameters
+        page = int(query_params.get('page', 1))
+        limit = min(int(query_params.get('limit', 10)), 100)  # Default 10, max 100 items per request
+        date_filter = query_params.get('date')
+        language_filter = query_params.get('language')
+        
+        # Calculate offset for page-based pagination
+        offset = (page - 1) * limit
+        
+        # Build scan parameters - we need to get more items to support pagination
+        scan_params = {
+            'Select': 'ALL_ATTRIBUTES'
+        }
+        
+        # Add filters
+        filter_expressions = []
+        expression_values = {}
+        expression_names = {}
+        
+        if date_filter:
+            filter_expressions.append('begins_with(#date, :date)')
+            expression_values[':date'] = date_filter
+            expression_names['#date'] = 'date'
+        
+        if language_filter:
+            filter_expressions.append('#lang = :lang')
+            expression_values[':lang'] = language_filter
+            expression_names['#lang'] = 'language'
+        
+        if filter_expressions:
+            scan_params['FilterExpression'] = ' AND '.join(filter_expressions)
+            scan_params['ExpressionAttributeValues'] = expression_values
+            scan_params['ExpressionAttributeNames'] = expression_names
+        
+        # Scan the table to get all items (for accurate pagination)
+        response = chat_table.scan(**scan_params)
+        items = response.get('Items', [])
+        
+        # Continue scanning if there are more items
+        while 'LastEvaluatedKey' in response:
+            scan_params['ExclusiveStartKey'] = response['LastEvaluatedKey']
+            response = chat_table.scan(**scan_params)
+            items.extend(response.get('Items', []))
+        
+        # Sort by timestamp (newest first)
+        items.sort(key=lambda x: x.get('timestamp', ''), reverse=True)
+        
+        # Calculate pagination
+        total_items = len(items)
+        total_pages = (total_items + limit - 1) // limit  # Ceiling division
+        
+        # Apply pagination
+        paginated_items = items[offset:offset + limit]
+        
+        # Format conversations for frontend
+        conversations = []
+        for item in paginated_items:
+            # Convert DynamoDB item to regular Python types
+            conversation = convert_dynamodb_item(item)
+            conversations.append(conversation)
+        
+        # Prepare response
+        response_data = {
+            'success': True,
+            'conversations': conversations,
+            'page': page,
+            'limit': limit,
+            'total': total_items,
+            'totalPages': total_pages,
+            'hasMore': page < total_pages
+        }
+        
+        return {
+            'statusCode': 200,
+            'headers': headers,
+            'body': json.dumps(response_data)
+        }
+        
+    except Exception as e:
+        logger.error(f"Error getting conversations: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({
+                'error': 'Failed to retrieve conversations',
+                'success': False,
+                'details': str(e) if os.environ.get('DEBUG') == 'true' else None
+            })
+        }
+
+def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Handle data sync requests - triggers ingestion jobs for knowledge base data sources
+    """
+    try:
+        # Parse request body
+        if 'body' in event:
+            if isinstance(event['body'], str):
+                body = json.loads(event['body'])
+            else:
+                body = event['body']
+        else:
+            body = {}
+        
+        sync_type = body.get('sync_type', 'manual')  # 'manual' or 'daily'
+        data_source_type = body.get('data_source_type', 'both')  # 'both', 'pdf', 'web', or 'daily'
+        
+        # Initialize Bedrock Agent client
+        bedrock_agent = boto3.client('bedrock-agent')
+        
+        # Get all data sources
+        data_sources_response = bedrock_agent.list_data_sources(
+            knowledgeBaseId=KNOWLEDGE_BASE_ID
+        )
+        
+        data_sources = data_sources_response.get('dataSourceSummaries', [])
+        
+        # Determine which data sources to sync
+        sources_to_sync = []
+        
+        if sync_type == 'daily' or data_source_type == 'daily':
+            # Only sync the daily sync data source
+            for ds in data_sources:
+                if 'DailySync' in ds.get('name', ''):
+                    sources_to_sync.append(ds)
+                    break
+        else:
+            # Manual sync - sync based on data_source_type
+            for ds in data_sources:
+                ds_name = ds.get('name', '')
+                if data_source_type == 'both':
+                    # Sync all except daily sync (that runs automatically)
+                    if 'DailySync' not in ds_name:
+                        sources_to_sync.append(ds)
+                elif data_source_type == 'pdf' and 'Documents' in ds_name:
+                    sources_to_sync.append(ds)
+                elif data_source_type == 'web' and 'Website' in ds_name:
+                    sources_to_sync.append(ds)
+        
+        if not sources_to_sync:
+            return {
+                'statusCode': 404,
+                'headers': headers,
+                'body': json.dumps({
+                    'success': False,
+                    'error': f'No data sources found for sync type: {data_source_type}'
+                })
+            }
+        
+        # Start ingestion jobs
+        started_jobs = []
+        failed_jobs = []
+        
+        # For "both" sync type, we want to sync PDF first, then website
+        if data_source_type == 'both':
+            # Sort data sources to ensure PDF documents sync first
+            pdf_sources = [ds for ds in sources_to_sync if 'Documents' in ds.get('name', '')]
+            web_sources = [ds for ds in sources_to_sync if 'Website' in ds.get('name', '')]
+            
+            # Combine in order: PDF first, then website
+            sources_to_sync = pdf_sources + web_sources
+            
+            # For manual "both" sync, recommend using sequential sync instead
+            if len(sources_to_sync) > 1:
+                return {
+                    'statusCode': 200,
+                    'headers': headers,
+                    'body': json.dumps({
+                        'success': True,
+                        'message': 'For optimal performance, multiple data sources should be synced sequentially. Please sync PDF Documents first, then Website Content.',
+                        'recommendation': 'Use individual sync options (PDF Documents Only, then Website Content Only) for better results.',
+                        'sources_found': [ds['name'] for ds in sources_to_sync]
+                    })
+                }
+        
+        for i, ds in enumerate(sources_to_sync):
+            try:
+                response = bedrock_agent.start_ingestion_job(
+                    knowledgeBaseId=KNOWLEDGE_BASE_ID,
+                    dataSourceId=ds['dataSourceId'],
+                    description=f"{sync_type.title()} sync - {datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}"
+                )
+                
+                job_id = response['ingestionJob']['ingestionJobId']
+                started_jobs.append({
+                    'dataSourceName': ds['name'],
+                    'dataSourceId': ds['dataSourceId'],
+                    'ingestionJobId': job_id
+                })
+                
+            except Exception as e:
+                logger.error(f"Failed to start ingestion job for {ds['name']}: {str(e)}")
+                failed_jobs.append({
+                    'dataSourceName': ds['name'],
+                    'error': str(e)
+                })
+        
+        # Prepare response
+        if started_jobs:
+            message = f"Successfully started {len(started_jobs)} ingestion job(s)"
+            if failed_jobs:
+                message += f", {len(failed_jobs)} failed"
+            
+            return {
+                'statusCode': 200,
+                'headers': headers,
+                'body': json.dumps({
+                    'success': True,
+                    'message': message,
+                    'started_jobs': started_jobs,
+                    'failed_jobs': failed_jobs,
+                    'sync_type': sync_type,
+                    'timestamp': datetime.utcnow().isoformat()
+                })
+            }
+        else:
+            return {
+                'statusCode': 500,
+                'headers': headers,
+                'body': json.dumps({
+                    'success': False,
+                    'error': 'Failed to start any ingestion jobs',
+                    'failed_jobs': failed_jobs
+                })
+            }
+            
+    except Exception as e:
+        logger.error(f"Error handling sync request: {str(e)}")
+        return {
+            'statusCode': 500,
+            'headers': headers,
+            'body': json.dumps({
+                'success': False,
+                'error': str(e)
+            })
+        }
+
+def get_system_status(headers: Dict[str, str]) -> Dict[str, Any]:
+    """
+    Get system status (existing functionality)
+    """
+    return {
+        'statusCode': 200,
+        'headers': headers,
+        'body': json.dumps({
+            'success': True,
+            'status': 'healthy',
+            'timestamp': datetime.utcnow().isoformat(),
+            'model': MODEL_ID,
+            'knowledge_base': KNOWLEDGE_BASE_ID
+        })
+    }
+
+def save_conversation(session_id: str, question: str, answer: str, language: str, sources: List[Dict[str, Any]]) -> str:
+    """
+    Save conversation to DynamoDB
+    """
+    try:
+        if not chat_table:
+            logger.error("Chat table not available, skipping conversation save")
+            return str(uuid.uuid4())
+        
+        conversation_id = str(uuid.uuid4())
+        timestamp = datetime.utcnow().isoformat()
+        date = datetime.utcnow().strftime('%Y-%m-%d')
+        
+        # Clean sources for DynamoDB storage
+        cleaned_sources = []
+        for source in sources:
+            cleaned_source = {
+                "title": source.get("title", ""),
+                "url": source.get("url", ""),
+                "type": source.get("type", "WEB")
+            }
+            cleaned_sources.append(cleaned_source)
+        
+        item = {
+            'conversation_id': conversation_id,
+            'session_id': session_id,
+            'timestamp': timestamp,
+            'date': date,
+            'question': question,
+            'answer': answer,
+            'language': language,
+            'sources': cleaned_sources,
+            'ttl': int((datetime.utcnow() + timedelta(days=90)).timestamp())
+        }
+        
+        # Attempt to save to DynamoDB with retry logic
+        max_retries = 3
+        for attempt in range(max_retries):
+            try:
+                response = chat_table.put_item(Item=item)
+                logger.info(f"Successfully saved conversation {conversation_id} to DynamoDB")
+                return conversation_id
+            except Exception as put_error:
+                logger.error(f"Put item attempt {attempt + 1} failed: {put_error}")
+                if attempt == max_retries - 1:
+                    raise put_error
+                import time
+                time.sleep(1)
+        
+    except Exception as e:
+        logger.error(f"Error saving conversation to DynamoDB: {str(e)}")
+        return str(uuid.uuid4())
+
+def generate_presigned_url(s3_uri: str) -> str:
+    """
+    Generate a presigned URL for S3 objects to make them accessible to users
+    """
+    try:
+        # Parse S3 URI (s3://bucket-name/key)
+        if not s3_uri.startswith('s3://'):
+            return s3_uri  # Return as-is if not an S3 URI
+
+        # Remove s3:// prefix and split bucket and key
+        s3_path = s3_uri[5:]  # Remove 's3://'
+        bucket_name = s3_path.split('/')[0]
+        object_key = '/'.join(s3_path.split('/')[1:])
+
+        # Generate presigned URL (valid for 1 hour)
+        presigned_url = s3_client.generate_presigned_url(
+            'get_object',
+            Params={'Bucket': bucket_name, 'Key': object_key},
+            ExpiresIn=3600  # 1 hour
+        )
+
+        logger.info(f"Generated presigned URL for {object_key}")
+        return presigned_url
+
+    except Exception as e:
+        logger.error(f"Error generating presigned URL for {s3_uri}: {str(e)}")
+        return s3_uri  # Return original URI if generation fails
+
+
+def generate_response(user_message: str, context_results: List[Dict[str, Any]], language: str) -> Dict[str, Any]:
+    """
+    Generate response using Bedrock Foundation Model with retrieved context
+    """
+    try:
+        # Build context from retrieval results
+        context_text = build_context_text(context_results)
+        
+        # Create prompt based on language
+        prompt = create_prompt(user_message, context_text, language)
+
+        logger.info(f"Generating response using model: {MODEL_ID}")
+
+        # Prepare request body for Claude models
+        request_body = {
+            "messages": [
+                {
+                    "role": "user",
+                    "content": prompt
+                }
+            ],
+            "max_tokens": MAX_TOKENS,
+            "temperature": TEMPERATURE,
+            "anthropic_version": "bedrock-2023-05-31"
+        }
+
+        # Invoke the model
+        response = bedrock_runtime.invoke_model(
+            modelId=MODEL_ID,
+            body=json.dumps(request_body),
+            contentType='application/json',
+            accept='application/json'
+        )
+
+        # Parse response
+        response_body = json.loads(response['body'].read())
+        generated_text = response_body['content'][0]['text']
+
+        logger.info(f"Response generated successfully: {len(generated_text)} characters")
+
+        return {
+            'response': generated_text,
+            'model_response': response_body
+        }
+
+    except Exception as e:
+        logger.error(f"Error generating response: {str(e)}")
+        return {
+            'response': get_fallback_response(language),
+            'model_response': None
+        }
+
+def build_context_text(context_results: List[Dict[str, Any]]) -> str:
+    """
+    Build context text from retrieval results
+    """
+    if not context_results:
+        return "No specific context available."
+
+    context_parts = []
+    for i, result in enumerate(context_results, 1):
+        content = result.get('content', {}).get('text', '')
+        if content:
+            context_parts.append(f"Context {i}: {content}")
+
+    return "\n\n".join(context_parts)
+
+def create_prompt(user_message: str, context: str, language: str) -> str:
+    """
+    Create appropriate prompt based on language and context
+    """
+    if language == 'es':
+        return f"""Eres un asistente experto en donación de sangre para America's Blood Centers. Responde en español basándote en el contexto proporcionado.
+
+Contexto:
+{context}
+
+Pregunta del usuario: {user_message}
+
+Instrucciones:
+- Responde SOLO en español
+- Usa la información del contexto proporcionado
+- Si la pregunta es sobre ubicaciones de donación, menciona el localizador de centros de sangre
+- Sé preciso y útil
+- Si no tienes información suficiente en el contexto, dilo claramente
+- Usa formato markdown cuando sea apropiado (listas, texto en negrita, etc.)
+- Organiza la información de manera clara y fácil de leer
+
+Respuesta:"""
+    else:
+        return f"""You are an expert blood donation assistant for America's Blood Centers. Answer based on the provided context.
+
+Context:
+{context}
+
+User question: {user_message}
+
+Instructions:
+- Answer based on the provided context
+- If asked about donation locations, mention the blood center locator
+- Be accurate and helpful
+- If you don't have sufficient information in the context, say so clearly
+- Focus on blood donation, eligibility, and America's Blood Centers information
+- Use markdown formatting when appropriate (lists, bold text, etc.)
+- Organize information clearly and make it easy to read
+
+Answer:"""
+
+def extract_sources(context_results: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Extract source information from context results with enhanced URL handling and pagination normalization
+    """
+    sources = []
+
+    for result in context_results:
+        location = result.get('location', {})
+        metadata = result.get('metadata', {})
+
+        # Extract source information from different possible locations
+        source_url = None
+        source_title = None
+
+        # Try different ways to get the source URL
+        if 's3Location' in location:
+            # S3 document source
+            s3_uri = location['s3Location'].get('uri', '')
+            if s3_uri:
+                source_url = s3_uri
+                # Extract filename for title
+                if 'pdfs/' in s3_uri:
+                    filename = s3_uri.split('/')[-1]
+                    source_title = filename.replace('.pdf', '')
+                else:
+                    filename = s3_uri.split('/')[-1] if '/' in s3_uri else s3_uri
+                    source_title = filename.replace('.pdf', '')
+
+        elif 'webLocation' in location:
+            # Web crawler source
+            source_url = location['webLocation'].get('url', '')
+            source_title = metadata.get('title', metadata.get('source', 'Web Page'))
+
+        # Fallback: check metadata for source information
+        if not source_url:
+            # Try various metadata fields
+            source_url = (metadata.get('x-amz-bedrock-kb-source-uri') or 
+                         metadata.get('source') or 
+                         metadata.get('uri') or 
+                         metadata.get('url', ''))
+
+            if source_url and 's3://' in source_url:
+                filename = source_url.split('/')[-1] if '/' in source_url else source_url
+                source_title = filename.replace('.pdf', '')
+            else:
+                source_title = metadata.get('title', metadata.get('source', 'Document'))
+
+        # Add source if we found a URL
+        if source_url:
+            # Normalize paginated URLs to base URL
+            normalized_url = normalize_paginated_url(source_url)
+            
+            # Determine source type
+            is_document = any(ext in source_url.lower() for ext in ['.pdf', '.docx', '.txt']) or 's3://' in source_url
+
+            # Generate presigned URL for S3 documents
+            accessible_url = normalized_url
+            if source_url.startswith('s3://'):
+                accessible_url = generate_presigned_url(source_url)
+                logger.info(f"Converted S3 URI to presigned URL: {source_url} -> {accessible_url[:100]}...")
+
+            # Update title for normalized URLs
+            if normalized_url != source_url:
+                source_title = get_normalized_title(normalized_url, source_title)
+
+            sources.append({
+                "title": source_title or f"Source {len(sources) + 1}",
+                "url": accessible_url,
+                "uri": source_url,  # Keep original URI for reference
+                "type": "DOCUMENT" if is_document else "WEB",
+                "score": result.get('score', 0)
+            })
+
+            logger.info(f"Extracted source: {source_title} - {accessible_url[:100]}...")
+
+    # Enhanced deduplication logic - prefer public URLs over S3 presigned URLs and normalize paginated URLs
+    unique_sources = []
+    seen_documents = {}
+
+    for source in sorted(sources, key=lambda x: x.get('score', 0), reverse=True):
+        # Create a unique key for the document (filename-based for S3, normalized URL for web)
+        doc_key = None
+
+        # Extract filename for deduplication key
+        if 's3://' in source['uri'] or 'amazonaws.com' in source['url']:
+            # S3 document - extract filename
+            if 's3://' in source['uri']:
+                doc_key = source['uri'].split('/')[-1].lower()
+            else:
+                doc_key = source['url'].split('/')[-1].split('?')[0].lower()  # Remove query params
+        else:
+            # Web URL - use normalized URL as key to deduplicate paginated pages
+            normalized_url = normalize_paginated_url(source['url'])
+            try:
+                from urllib.parse import urlparse
+                parsed = urlparse(normalized_url)
+                doc_key = f"{parsed.netloc}{parsed.path}".lower()
+                # Remove trailing slash for consistency
+                doc_key = doc_key.rstrip('/')
+            except:
+                doc_key = normalized_url.lower()
+
+        if doc_key and doc_key not in seen_documents:
+            unique_sources.append(source)
+            seen_documents[doc_key] = source
+            logger.info(f"Added unique source: {source['title']} (key: {doc_key})")
+        elif doc_key and doc_key in seen_documents:
+            existing_source = seen_documents[doc_key]
+
+            # Prefer public web URLs over S3 presigned URLs
+            is_current_public = not ('amazonaws.com' in source['url'] or 's3://' in source['uri'])
+            is_existing_s3 = 'amazonaws.com' in existing_source['url'] or 's3://' in existing_source['uri']
+
+            if is_current_public and is_existing_s3:
+                # Replace S3 URL with public URL
+                for i, us in enumerate(unique_sources):
+                    if us == existing_source:
+                        unique_sources[i] = source
+                        seen_documents[doc_key] = source
+                        logger.info(f"Replaced S3 URL with public URL: {source['title']} (key: {doc_key})")
+                        break
+            else:
+                logger.info(f"Skipped duplicate source: {source['title']} (key: {doc_key})")
+        else:
+            logger.info(f"Skipped source with no valid key: {source['title']}")
+
+    logger.info(f"Final sources count: {len(unique_sources)} (reduced from {len(sources)})")
+    return unique_sources
+
+def normalize_paginated_url(url: str) -> str:
+    """
+    Normalize paginated URLs to their base URL
+    Examples:
+    - https://americasblood.org/news/paged-2/5/ -> https://americasblood.org/news/
+    - https://americasblood.org/news/page/2/ -> https://americasblood.org/news/
+    - https://americasblood.org/category/updates/page/3/ -> https://americasblood.org/category/updates/
+    """
+    if not url:
+        return url
+    
+    # Common pagination patterns to remove
+    pagination_patterns = [
+        r'/paged-\d+/\d+/?$',  # /paged-2/5/
+        r'/page/\d+/?$',       # /page/2/
+        r'/p\d+/?$',           # /p2/
+        r'\?page=\d+',         # ?page=2
+        r'&page=\d+',          # &page=2
+        r'\?p=\d+',            # ?p=2
+        r'&p=\d+',             # &p=2
+    ]
+    
+    normalized_url = url
+    for pattern in pagination_patterns:
+        normalized_url = re.sub(pattern, '', normalized_url)
+    
+    # Clean up any trailing slashes or query parameters that might be left
+    normalized_url = normalized_url.rstrip('/')
+    
+    # If we removed pagination and the URL doesn't end with a meaningful path, add trailing slash
+    if normalized_url and not normalized_url.endswith(('.html', '.htm', '.php', '.aspx')):
+        normalized_url += '/'
+    
+    return normalized_url
+
+def get_normalized_title(normalized_url: str, original_title: str) -> str:
+    """
+    Get an appropriate title for a normalized URL
+    """
+    if not normalized_url:
+        return original_title
+    
+    try:
+        from urllib.parse import urlparse
+        parsed = urlparse(normalized_url)
+        path = parsed.path.strip('/')
+        
+        # Create a clean title based on the normalized URL path
+        if '/news' in path:
+            return "America's Blood Centers - News"
+        elif '/for-donors' in path:
+            return "America's Blood Centers - For Donors"
+        elif '/one-pagers-faqs' in path:
+            return "America's Blood Centers - FAQs"
+        elif '/newsroom' in path:
+            return "America's Blood Centers - Newsroom"
+        else:
+            # Use the original title but clean it up
+            if 'Page' in original_title and any(char.isdigit() for char in original_title):
+                # Remove page numbers from titles
+                clean_title = re.sub(r'\s*-?\s*Page\s*\d+.*$', '', original_title, flags=re.IGNORECASE)
+                return clean_title.strip() or original_title
+            return original_title
+    except:
+        return original_title
+
+def add_blood_center_link_if_needed(user_message: str, sources: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """
+    Add blood center locator link if user is asking about donation locations
+    """
+    blood_center_keywords = [
+        'where can i donate', 'where to donate', 'find blood center',
+        'blood center near', 'donation location', 'donate near me',
+        'donde puedo donar', 'dónde puedo donar', 'centro de sangre',
+        'find a center', 'locate blood center', 'donation site'
+    ]
+
+    is_location_question = any(keyword in user_message.lower() for keyword in blood_center_keywords)
+    blood_center_url = "https://americasblood.org/for-donors/find-a-blood-center/"
+
+    # Check if blood center link already exists
+    has_blood_center_link = any(source.get('url') == blood_center_url for source in sources)
+
+    if is_location_question and not has_blood_center_link:
+        sources.insert(0, {
+            "title": "Blood Center Locator - Find a Donation Location Near You",
+            "url": blood_center_url,
+            "uri": blood_center_url,  # Keep uri for consistency
+            "type": "WEB",
+            "score": 1.0
+        })
+        logger.info("Added blood center locator link for location question")
+
+    return sources
+
+def get_fallback_response(language: str) -> str:
+    """
+    Get fallback response when model fails
+    """
+    if language == 'es':
+        return "Lo siento, tengo problemas para responder en este momento. Por favor, inténtalo de nuevo más tarde o contacta directamente a America's Blood Centers."
+    else:
+        return "I'm sorry, I'm having trouble responding right now. Please try again later or contact America's Blood Centers directly."
+
+def process_markdown_response(response: str) -> str:
+    """
+    Process the response to ensure proper markdown formatting for the frontend
+    """
+    if not response:
+        return response
+
+    # Clean up any existing markdown formatting issues
+    processed = response.strip()
+
+    # Ensure proper line breaks for lists
+    processed = re.sub(r'\n(\d+\.)', r'\n\n\1', processed)  # Numbered lists
+    processed = re.sub(r'\n(\*|\-)', r'\n\n\1', processed)  # Bullet lists
+
+    # Ensure proper spacing around headers
+    processed = re.sub(r'\n(#{1,6}\s)', r'\n\n\1', processed)
+
+    # Clean up multiple consecutive newlines (max 2)
+    processed = re.sub(r'\n{3,}', '\n\n', processed)
+
+    # Ensure bold text is properly formatted
+    processed = re.sub(r'\*\*([^*]+)\*\*', r'**\1**', processed)
+
+    return processed.strip()
+
+def has_markdown_formatting(text: str) -> bool:
+    """
+    Check if the text contains markdown formatting
+    """
+    if not text:
+        return False
+
+    markdown_patterns = [
+        r'\*\*[^*]+\*\*',  # Bold text
+        r'\*[^*]+\*',      # Italic text
+        r'^#{1,6}\s',      # Headers
+        r'^\d+\.\s',       # Numbered lists
+        r'^[\*\-]\s',      # Bullet lists
+        r'\[([^\]]+)\]\(([^)]+)\)',  # Links
+    ]
+
+    for pattern in markdown_patterns:
+        if re.search(pattern, text, re.MULTILINE):
+            return True
+    
+    return False

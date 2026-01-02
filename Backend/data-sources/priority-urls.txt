@@ -1,4 +1,0 @@
-# High-priority URLs that should be crawled more frequently
-# These contain dynamic content like blood supply status
-https://americasblood.org/for-donors/americas-blood-supply/
-https://americasblood.org/for-donors/find-a-blood-center/

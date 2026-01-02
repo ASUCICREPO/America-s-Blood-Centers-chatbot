@@ -13,157 +13,268 @@ phases:
 
   pre_build:
     commands:
+      - echo "=== Building TypeScript ==="
       - npm run build
+      - echo "✅ TypeScript build completed"
+      - echo "=== Installing Lambda dependencies ==="
+      - cd lambda/chat-lambda && pip install -r requirements.txt -t . && cd ../..
+      - cd lambda/daily-sync-lambda && pip install -r requirements.txt -t . && cd ../..
+      - cd lambda/sync-operations && pip install -r requirements.txt -t . && cd ../..
+      - echo "✅ Lambda dependencies installed"
       - echo "=== Bootstrapping CDK Environment ==="
-      - cdk bootstrap --require-approval never
+      - |
+        # Set default PROJECT_NAME for bootstrap if not provided
+        if [ -z "$PROJECT_NAME" ]; then
+          PROJECT_NAME="blood-centers"
+        fi
+        cdk bootstrap --require-approval never \
+          --context projectName="$PROJECT_NAME" \
+          --context modelId="${MODEL_ID:-global.anthropic.claude-sonnet-4-5-20250929-v1:0}" \
+          --context embeddingModelId="${EMBEDDING_MODEL_ID:-amazon.titan-embed-text-v1}"
       - echo "✅ CDK Bootstrap completed"
 
   build:
     commands:
       - |
-        if [ "$ACTION" = "destroy" ]; then          
-          cdk destroy AmericasBloodCentersStack --force \
+        if [ "$ACTION" = "destroy" ]; then
+          echo "=== Destroying Stack ==="
+          cdk destroy AmericasBloodCentersBedrockStack --force \
             --context projectName="$PROJECT_NAME" \
-            --context urlFilesPath="$URL_FILES_PATH" \
-            --context dataBucketName="$DATA_BUCKET_NAME" \
-            --context frontendBucketName="$FRONTEND_BUCKET_NAME"
+            --context modelId="$MODEL_ID" \
+            --context embeddingModelId="$EMBEDDING_MODEL_ID"
+          echo "✅ Stack destroyed successfully"
         else
-          echo "=== PHASE 1: Backend Deployment ==="
-          cdk deploy AmericasBloodCentersStack --require-approval never \
+          echo "========================================="
+          echo "Deploying America's Blood Centers Bedrock Chatbot"
+          echo "========================================="
+          
+          echo "=== CDK Infrastructure Deployment ==="
+          
+          # Set default PROJECT_NAME if not provided
+          if [ -z "$PROJECT_NAME" ]; then
+            PROJECT_NAME="blood-centers"
+            echo "🔍 Using default PROJECT_NAME: $PROJECT_NAME"
+          else
+            echo "🔍 Using provided PROJECT_NAME: $PROJECT_NAME"
+          fi
+          
+          cdk deploy AmericasBloodCentersBedrockStack --require-approval never \
             --context projectName="$PROJECT_NAME" \
-            --context urlFilesPath="$URL_FILES_PATH" \
-            --context dataBucketName="$DATA_BUCKET_NAME" \
-            --context frontendBucketName="$FRONTEND_BUCKET_NAME" \
+            --context modelId="$MODEL_ID" \
+            --context embeddingModelId="$EMBEDDING_MODEL_ID" \
             --outputs-file outputs.json
           
-          LAMBDA_FUNCTION_URL=$(cat outputs.json | jq -r '.AmericasBloodCentersStack.LambdaFunctionURL // empty')
-          FRONTEND_BUILD_BUCKET=$(cat outputs.json | jq -r '.AmericasBloodCentersStack.FrontendBuildBucketName // empty')
-          
-          if [ -z "$LAMBDA_FUNCTION_URL" ] || [ -z "$FRONTEND_BUILD_BUCKET" ]; then
-            echo "Error: Could not extract required outputs from CDK deployment"
+          if [ $? -ne 0 ]; then
+            echo "❌ ERROR: CDK deployment failed"
             exit 1
           fi
           
-          echo "=== PHASE 2: Testing Lambda Function URL Endpoints ==="
-          HEALTH_RESPONSE=$(curl -s -w "%{http_code}" "${LAMBDA_FUNCTION_URL}" || echo "000")
-          if echo "$HEALTH_RESPONSE" | grep -q "200"; then
-            echo "✅ Lambda Function URL health check passed"
-          else
-            echo "⚠️ Lambda Function URL health check failed"
-          fi
+          echo "✅ CDK deployment successful"
           
+          echo "=== Extracting CDK Outputs ==="
+          STACK_NAME="AmericasBloodCentersBedrockStack"
+          DOCUMENTS_BUCKET=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.DocumentsBucketName // empty')
+          KB_ID=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.KnowledgeBaseId // empty')
+          API_URL=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.ApiGatewayUrl // empty')
+          OPENSEARCH_ENDPOINT=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.OpenSearchCollectionEndpoint // empty')
           
-          echo "=== PHASE 3: Amplify App Setup ==="
-          echo "Creating/updating Amplify app..."
-          echo "App name: $AMPLIFY_APP_NAME"
-          
-          # First, try to find existing app
-          AMPLIFY_APP_ID=$(aws amplify list-apps \
-            --query "apps[?name=='$AMPLIFY_APP_NAME'].appId" \
-            --output text)
-          
-          if [ -z "$AMPLIFY_APP_ID" ] || [ "$AMPLIFY_APP_ID" = "None" ]; then
-            echo "No existing app found, creating new Amplify app..."
-            AMPLIFY_APP_ID=$(aws amplify create-app \
-              --name "$AMPLIFY_APP_NAME" \
-              --platform WEB \
-              --environment-variables "REACT_APP_API_BASE_URL=$LAMBDA_FUNCTION_URL,REACT_APP_CHAT_ENDPOINT=$LAMBDA_FUNCTION_URL,REACT_APP_HEALTH_ENDPOINT=$LAMBDA_FUNCTION_URL" \
-              --query 'app.appId' \
-              --output text)
-          else
-            echo "Found existing app with ID: $AMPLIFY_APP_ID"
-            # Update environment variables for existing app
-            aws amplify update-app \
-              --app-id "$AMPLIFY_APP_ID" \
-              --environment-variables "REACT_APP_API_BASE_URL=$LAMBDA_FUNCTION_URL,REACT_APP_CHAT_ENDPOINT=$LAMBDA_FUNCTION_URL,REACT_APP_HEALTH_ENDPOINT=$LAMBDA_FUNCTION_URL"
-          fi
-          
-          echo "Final Amplify App ID: $AMPLIFY_APP_ID"
-          
-          if [ -z "$AMPLIFY_APP_ID" ] || [ "$AMPLIFY_APP_ID" = "None" ]; then
-            echo "❌ ERROR: Failed to create or find Amplify app"
+          if [ -z "$DOCUMENTS_BUCKET" ] || [ -z "$KB_ID" ] || [ -z "$API_URL" ]; then
+            echo "❌ ERROR: Failed to extract required outputs from CDK deployment"
+            echo "Documents Bucket: $DOCUMENTS_BUCKET"
+            echo "Knowledge Base ID: $KB_ID"
+            echo "API URL: $API_URL"
             exit 1
           fi
+          
+          echo "✅ Outputs extracted successfully"
+          echo "  📁 Documents Bucket: $DOCUMENTS_BUCKET"
+          echo "  🧠 Knowledge Base ID: $KB_ID"
+          echo "  🌐 API Gateway URL: $API_URL"
+          echo "  🔍 OpenSearch Endpoint: $OPENSEARCH_ENDPOINT"
+          
+          echo ""
+          echo "=== Starting Knowledge Base Ingestion (Background) ==="
+          
+          # Start sequential sync using Step Functions state machine
+          echo "Starting Step Functions workflow for sequential sync..."
+          
+          # Get Step Functions State Machine ARN from CDK outputs
+          STATE_MACHINE_ARN=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.SequentialSyncStateMachineArn // empty')
+          
+          if [ -n "$STATE_MACHINE_ARN" ] && [ "$STATE_MACHINE_ARN" != "empty" ]; then
+            echo "✅ Found Step Functions State Machine: $STATE_MACHINE_ARN"
             
-          aws amplify create-branch \
-            --app-id "$AMPLIFY_APP_ID" \
-            --branch-name "$AMPLIFY_BRANCH_NAME" \
-            --stage PRODUCTION \
-            --environment-variables "REACT_APP_API_BASE_URL=$LAMBDA_FUNCTION_URL,REACT_APP_CHAT_ENDPOINT=$LAMBDA_FUNCTION_URL,REACT_APP_HEALTH_ENDPOINT=$LAMBDA_FUNCTION_URL" \
-            --no-cli-pager 2>/dev/null || echo "Branch already exists"
-
-          aws lambda update-function-configuration \
-            --function-name "$(cat outputs.json | jq -r '.AmericasBloodCentersStack.AmplifyDeployerFunctionName')" \
-            --environment "Variables={AMPLIFY_APP_ID=$AMPLIFY_APP_ID, AMPLIFY_BRANCH_NAME=$AMPLIFY_BRANCH_NAME}"
-          
-          echo "=== PHASE 4: Frontend Build and Automated Deployment ==="
-          cd ../Frontend      
-    
-          export PUBLIC_URL=""
-          export GENERATE_SOURCEMAP=false
-          
-          echo "REACT_APP_API_BASE_URL=$LAMBDA_FUNCTION_URL" > .env.production
-          echo "REACT_APP_CHAT_ENDPOINT=$LAMBDA_FUNCTION_URL" >> .env.production
-          echo "REACT_APP_HEALTH_ENDPOINT=$LAMBDA_FUNCTION_URL" >> .env.production
-          echo "PUBLIC_URL=" >> .env.production
-          echo "GENERATE_SOURCEMAP=false" >> .env.production
-          
-          rm -rf build/ node_modules/.cache/
-          npm install
-          npm run build
-          
-          if [ ! -f "build/index.html" ]; then
-            echo "❌ ERROR: Build failed - index.html not found!"
-            exit 1
+            # Start Step Functions execution asynchronously
+            EXECUTION_ARN=$(aws stepfunctions start-execution \
+              --state-machine-arn "$STATE_MACHINE_ARN" \
+              --name "deployment-sync-$(date +%s)" \
+              --input '{"sync_type":"deployment","timestamp":"'$(date -u +%Y-%m-%dT%H:%M:%SZ)'"}' \
+              --region "$CDK_DEFAULT_REGION" \
+              --query 'executionArn' \
+              --output text)
+            
+            if [ $? -eq 0 ]; then
+              echo "✅ Step Functions workflow started successfully"
+              echo "📊 Execution ARN: $EXECUTION_ARN"
+              echo "🔄 Sync order: PDF Documents → Daily Sync → Website Content"
+              echo "⏱️ Workflow will handle all waiting and sequencing automatically"
+              echo "💰 Cost optimized: Only pay for actual state transitions"
+              echo "🎯 No Lambda timeout issues - can run for hours"
+            else
+              echo "⚠️ Failed to start Step Functions workflow, but continuing deployment"
+            fi
+          else
+            echo "⚠️ Step Functions State Machine not found, skipping background sync"
           fi
           
-          if grep -q "%PUBLIC_URL%" build/index.html; then
-            echo "❌ ERROR: Build incomplete - %PUBLIC_URL% not replaced!"
-            exit 1
+          echo ""
+          echo "=== Amplify App Setup ==="
+          
+          # Get Amplify App ID from CDK outputs
+          AMPLIFY_APP_ID=$(cat outputs.json | jq -r '.AmericasBloodCentersBedrockStack.AmplifyAppId // empty')
+          
+          if [ -n "$AMPLIFY_APP_ID" ] && [ "$AMPLIFY_APP_ID" != "empty" ]; then
+            echo "✅ Amplify App created via CDK: $AMPLIFY_APP_ID"
+            echo "📱 Amplify App URL: https://main.$AMPLIFY_APP_ID.amplifyapp.com"
+          else
+            echo "⚠️ Amplify App ID not found in CDK outputs"
           fi
           
-          echo "✅ Build successful"
+          echo ""
+          echo "=== Frontend Build and Automated Deployment ==="
           
-          cd build
-          zip -r ../build.zip . -x "*.DS_Store" "*.map"
-          cd ..
+          # Check if Frontend directory exists
+          if [ -d "../Frontend" ]; then
+            cd ../Frontend
+            
+            # Set up environment variables
+            export PUBLIC_URL=""
+            export GENERATE_SOURCEMAP=false
+            echo "REACT_APP_API_BASE_URL=$API_URL" > .env.production
+            echo "REACT_APP_CHAT_ENDPOINT=$API_URL" >> .env.production
+            echo "REACT_APP_HEALTH_ENDPOINT=$API_URL" >> .env.production
+            echo "REACT_APP_USER_POOL_ID=$(cat ../Backend/outputs.json | jq -r '.AmericasBloodCentersBedrockStack.AdminUserPoolId // empty')" >> .env.production
+            echo "REACT_APP_USER_POOL_CLIENT_ID=$(cat ../Backend/outputs.json | jq -r '.AmericasBloodCentersBedrockStack.AdminUserPoolClientId // empty')" >> .env.production
+            echo "REACT_APP_AWS_REGION=$CDK_DEFAULT_REGION" >> .env.production
+            echo "PUBLIC_URL=" >> .env.production
+            echo "GENERATE_SOURCEMAP=false" >> .env.production
+            
+            # Clean and build
+            rm -rf build/ node_modules/.cache/
+            npm install
+            npm run build
+            
+            if [ ! -f "build/index.html" ]; then
+              echo "❌ ERROR: Build failed - index.html not found!"
+              exit 1
+            fi
+            
+            if grep -q "%PUBLIC_URL%" build/index.html; then
+              echo "❌ ERROR: Build incomplete - %PUBLIC_URL% not replaced!"
+              exit 1
+            fi
+            
+            echo "✅ Build successful"
+            
+            # Create deployment package
+            cd build
+            zip -r ../build.zip . -x "*.DS_Store" "*.map"
+            cd ..
+            
+            # Upload to builds bucket
+            BUILD_KEY="builds/build-$(date +%s).zip"
+            BUILDS_BUCKET=$(cat ../Backend/outputs.json | jq -r '.AmericasBloodCentersBedrockStack.BuildsBucketName // empty')
+            
+            if [ -n "$BUILDS_BUCKET" ] && [ "$BUILDS_BUCKET" != "empty" ]; then
+              aws s3 cp build.zip "s3://$BUILDS_BUCKET/$BUILD_KEY"
+              echo "✅ Build artifact uploaded to S3: $BUILD_KEY"
+              
+              # Use direct Amplify deployment (no Lambda needed)
+              aws amplify start-deployment \
+                --app-id "$AMPLIFY_APP_ID" \
+                --branch-name "main" \
+                --source-url "s3://$BUILDS_BUCKET/$BUILD_KEY" \
+                --region "$CDK_DEFAULT_REGION"
+              echo "✅ Direct Amplify deployment started"
+              
+              echo "🚀 Automated deployment initiated"
+              echo "📱 Amplify App URL: https://main.$AMPLIFY_APP_ID.amplifyapp.com"
+            else
+              echo "⚠️ Builds bucket not found, skipping S3 upload"
+            fi
+            
+            cd ../Backend
+          else
+            echo "⚠️ Frontend directory not found, skipping frontend deployment"
+          fi
           
-          BUILD_KEY="builds/build-$(date +%s).zip"
-          aws s3 cp build.zip s3://$FRONTEND_BUILD_BUCKET/$BUILD_KEY
-          
-          echo "✅ Build artifact uploaded to S3: $BUILD_KEY"
-          echo "🚀 Automated deployment will start via EventBridge trigger"
-          echo "📱 Amplify App URL: https://$AMPLIFY_BRANCH_NAME.$AMPLIFY_APP_ID.amplifyapp.com"
-          
-          echo "$AMPLIFY_APP_ID" > ../amplify_app_id.txt
-          
-          cd ../Backend
+          echo ""
+          echo "========================================="
+          echo "✅ Deployment Complete!"
+          echo "========================================="
+          echo "🧠 Knowledge Base ID: $KB_ID"
+          echo "� SDocuments Bucket: $DOCUMENTS_BUCKET"
+          echo "🔍 OpenSearch Endpoint: $OPENSEARCH_ENDPOINT"
+          echo "🌐 API Gateway URL: $API_URL"
+          echo "�  Frontend URL: https://main.$AMPLIFY_APP_ID.amplifyapp.com"
+          echo "� Depnloyment Type: CDK-managed Amplify App"
+          echo "⏰ Daily Sync: Automated at 2 AM UTC via EventBridge + Lambda"
+          echo "========================================="
+          echo ""
+          echo "========================================="
+          echo "� Next Steps"
+          echo "========================================="
+          echo "1️⃣ Wait 5-10 minutes for ingestion jobs to complete"
+          echo ""
+          echo "2️⃣ Test the API:"
+          echo "   curl -X POST $API_URL \\"
+          echo "     -H 'Content-Type: application/json' \\"
+          echo "     -d '{\"message\":\"How many people donate blood?\",\"language\":\"en\"}'"
+          echo ""
+          echo "3️⃣ Test Spanish support:"
+          echo "   curl -X POST $API_URL \\"
+          echo "     -H 'Content-Type: application/json' \\"
+          echo "     -d '{\"message\":\"¿Cuántas personas donan sangre?\",\"language\":\"es\"}'"
+          echo ""
+          echo "4️⃣ Monitor ingestion jobs:"
+          echo "   aws bedrock-agent list-ingestion-jobs \\"
+          echo "     --knowledge-base-id $KB_ID \\"
+          echo "     --region $CDK_DEFAULT_REGION"
+          echo ""
+          echo "5️⃣ Add more documents:"
+          echo "   aws s3 cp document.pdf s3://$DOCUMENTS_BUCKET/pdfs/"
+          echo "   # Then trigger manual sync via admin dashboard"
+          echo ""
+          echo "📊 Monitor resources:"
+          echo "  • Knowledge Base: https://console.aws.amazon.com/bedrock/home?region=${CDK_DEFAULT_REGION}#/knowledge-bases"
+          echo "  • OpenSearch: https://console.aws.amazon.com/aos/home?region=${CDK_DEFAULT_REGION}#opensearch/collections"
+          echo "  • S3 Bucket: https://s3.console.aws.amazon.com/s3/buckets/$DOCUMENTS_BUCKET"
+          echo "  • Daily Sync Lambda: https://console.aws.amazon.com/lambda/home?region=${CDK_DEFAULT_REGION}#/functions"
+          echo "  • EventBridge Rules: https://console.aws.amazon.com/events/home?region=${CDK_DEFAULT_REGION}#/rules"
+          echo ""
+          echo "� Estimanted monthly cost: \$8-20 (vs \$20+ for Q Business)"
+          echo "🎯 Features: Dual data sources, bilingual support, automatic web crawling, markdown support"
+          echo "🚀 Frontend: Automatically deployed to Amplify (no GitHub required)"
+          echo "⏰ Daily Sync: Fully automated - runs daily at 2 AM UTC for fresh blood supply data"
+          echo ""
         fi
 
   post_build:
     commands:
-      - echo "=== Deployment Complete ==="
+      - echo "========================================="
+      - echo "🎉 Deployment Complete"
+      - echo "========================================="
       - |
         if [ "$ACTION" = "deploy" ]; then
-          AMPLIFY_APP_ID=$(cat ../amplify_app_id.txt 2>/dev/null || echo "")
-          echo "🎉 Deployment Summary:"
-          echo "✅ Backend: Deployed via CloudFormation"
-          echo "✅ Amplify App: Created/Updated via CLI"
-          echo "✅ Frontend: Automated deployment triggered via S3 upload"
-          echo ""
-          echo "🔗 URLs:"
-          echo "Chat API: ${LAMBDA_FUNCTION_URL}"
-          echo "Health Check: ${LAMBDA_FUNCTION_URL}"
-          if [ -n "$AMPLIFY_APP_ID" ]; then
-            echo "Amplify URL: https://$AMPLIFY_BRANCH_NAME.$AMPLIFY_APP_ID.amplifyapp.com"
-          fi
-          echo ""
-          echo "📊 Monitor:"
-          echo "- Q Business data sync in Q Business Console"
-          echo "- Amplify deployment in Amplify Console"
+          echo "✅ Bedrock chatbot deployed successfully"
+          echo "📊 Check CloudWatch Logs for Lambda execution details"
+          echo "🧠 Test Knowledge Base retrieval via the chat API"
+          echo "🌐 Monitor ingestion jobs in Bedrock console"
+        else
+          echo "✅ Stack destroyed successfully"
         fi
 
 artifacts:
   files:
     - "**/*"
-  base-directory: "cdk.out"
+  base-directory: "Backend/cdk.out"

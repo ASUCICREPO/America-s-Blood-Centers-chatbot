@@ -1,8 +1,10 @@
 import { createTheme } from "@mui/material/styles"
 import {
   PRIMARY_MAIN,
-  primary_50,
   SECONDARY_MAIN,
+  DARK_BLUE,
+  LIGHT_BACKGROUND,
+  WHITE,
   CHAT_LEFT_PANEL_BACKGROUND,
   BOTMESSAGE_BACKGROUND,
   USERMESSAGE_BACKGROUND,
@@ -12,26 +14,28 @@ const theme = createTheme({
   palette: {
     primary: {
       main: PRIMARY_MAIN,
-      50: primary_50,
+      light: "#E57373",
+      dark: DARK_BLUE,
     },
     secondary: {
       main: SECONDARY_MAIN,
     },
     background: {
-      chatBody: "#FFFFF7", // Updated to the new background color
+      default: LIGHT_BACKGROUND,
+      paper: WHITE,
+      chatBody: LIGHT_BACKGROUND,
       chatLeftPanel: CHAT_LEFT_PANEL_BACKGROUND,
-      header: "#FFFFF7", // Updated to the new background color
+      header: LIGHT_BACKGROUND,
       botMessage: BOTMESSAGE_BACKGROUND,
       userMessage: USERMESSAGE_BACKGROUND,
     },
   },
   typography: {
     fontFamily: [
-      "Lato",
+      "Roboto",
       "-apple-system",
       "BlinkMacSystemFont",
       "Segoe UI",
-      "Roboto",
       "Oxygen",
       "Ubuntu",
       "Cantarell",
@@ -40,6 +44,34 @@ const theme = createTheme({
       "Helvetica Neue",
       "sans-serif",
     ].join(","),
+    h4: {
+      fontWeight: 600,
+    },
+    h5: {
+      fontWeight: 600,
+    },
+    h6: {
+      fontWeight: 600,
+    },
+  },
+  components: {
+    MuiButton: {
+      styleOverrides: {
+        root: {
+          textTransform: "none",
+          borderRadius: "8px",
+        },
+      },
+    },
+    MuiTextField: {
+      styleOverrides: {
+        root: {
+          "& .MuiOutlinedInput-root": {
+            borderRadius: "8px",
+          },
+        },
+      },
+    },
   },
 })
 
