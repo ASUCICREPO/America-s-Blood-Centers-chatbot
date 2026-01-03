@@ -17,13 +17,13 @@ import { opensearchserverless, opensearch_vectorindex } from '@cdklabs/generativ
 import { Construct } from 'constructs';
 
 export interface BedrockChatbotStackProps extends cdk.StackProps {
-  readonly projectName?: string;
-  readonly modelId?: string;
-  readonly embeddingModelId?: string;
+  readonly projectName: string;
+  readonly modelId: string;
+  readonly embeddingModelId: string;
 }
 
 export class BedrockChatbotStack extends cdk.Stack {
-  constructor(scope: Construct, id: string, props: BedrockChatbotStackProps = {}) {
+  constructor(scope: Construct, id: string, props: BedrockChatbotStackProps) {
     super(scope, id, props);
 
     const aws_region = cdk.Stack.of(this).region;
@@ -39,8 +39,8 @@ export class BedrockChatbotStack extends cdk.Stack {
         : lambda.Architecture.X86_64;
     console.log(`Lambda architecture: ${lambdaArchitecture}`);
 
-    const projectName = props.projectName ;
-    const modelId = props.modelId ;
+    const projectName = props.projectName;
+    const modelId = props.modelId;
     const embeddingModelId = props.embeddingModelId;
 
     // ===== S3 Bucket for Documents =====
