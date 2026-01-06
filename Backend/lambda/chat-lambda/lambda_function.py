@@ -602,6 +602,29 @@ def generate_presigned_url(s3_uri: str) -> str:
         logger.error(f"Error generating presigned URL for {s3_uri}: {str(e)}")
         return s3_uri  # Return original URI if generation fails
 
+def generate_clean_s3_url(s3_uri: str) -> str:
+    """
+    Generate a clean S3 URL without query parameters for display purposes
+    """
+    try:
+        # Parse S3 URI (s3://bucket-name/key)
+        if not s3_uri.startswith('s3://'):
+            return s3_uri  # Return as-is if not an S3 URI
+
+        # Remove s3:// prefix and split bucket and key
+        s3_path = s3_uri[5:]  # Remove 's3://'
+        bucket_name = s3_path.split('/')[0]
+        object_key = '/'.join(s3_path.split('/')[1:])
+
+        # Create clean S3 URL without authentication parameters
+        clean_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
+        
+        logger.info(f"Generated clean S3 URL for {object_key}")
+        return clean_url
+
+    except Exception as e:
+        logger.error(f"Error generating clean S3 URL for {s3_uri}: {str(e)}")
+        return s3_uri  # Return original URI if generation fails
 
 def generate_response(user_message: str, context_results: List[Dict[str, Any]], language: str) -> Dict[str, Any]:
     """
@@ -766,11 +789,14 @@ def extract_sources(context_results: List[Dict[str, Any]]) -> List[Dict[str, Any
             # Determine source type
             is_document = any(ext in source_url.lower() for ext in ['.pdf', '.docx', '.txt']) or 's3://' in source_url
 
-            # Generate presigned URL for S3 documents
+            # Generate clean URL for documents
             accessible_url = normalized_url
             if source_url.startswith('s3://'):
-                accessible_url = generate_presigned_url(source_url)
-                logger.info(f"Converted S3 URI to presigned URL: {source_url} -> {accessible_url[:100]}...")
+                # Use clean S3 URL without query parameters for better user experience
+                accessible_url = generate_clean_s3_url(source_url)
+                logger.info(f"Created clean S3 URL: {source_url} -> {accessible_url}")
+            else:
+                accessible_url = normalized_url
 
             # Update title for normalized URLs
             if normalized_url != source_url:
@@ -842,14 +868,26 @@ def extract_sources(context_results: List[Dict[str, Any]]) -> List[Dict[str, Any
 
 def normalize_paginated_url(url: str) -> str:
     """
-    Normalize paginated URLs to their base URL
+    Normalize paginated URLs to their base URL and fix PDF link issues
     Examples:
     - https://americasblood.org/news/paged-2/5/ -> https://americasblood.org/news/
     - https://americasblood.org/news/page/2/ -> https://americasblood.org/news/
     - https://americasblood.org/category/updates/page/3/ -> https://americasblood.org/category/updates/
+    - https://americasblood.org/wp-content/uploads/2025/01/The-Timeline-of-Blood-Donation-Final.pdf/link -> https://americasblood.org/wp-content/uploads/2025/01/The-Timeline-of-Blood-Donation-Final.pdf
+    - https://americasblood.org/wp-content/uploads/2025/01/The-Timeline-of-Blood-Donation-Final.pdf/ -> https://americasblood.org/wp-content/uploads/2025/01/The-Timeline-of-Blood-Donation-Final.pdf
     """
     if not url:
         return url
+    
+    # Fix PDF link issue - remove /link suffix from PDF URLs
+    if url.endswith('/link') and '.pdf' in url:
+        url = url.replace('/link', '')
+    
+    # Fix PDF trailing slash issue - remove trailing slash from PDF URLs
+    if url.endswith('/') and '.pdf' in url:
+        # Check if the slash is after the .pdf extension
+        if url.rstrip('/').endswith('.pdf'):
+            url = url.rstrip('/')
     
     # Common pagination patterns to remove
     pagination_patterns = [
@@ -870,7 +908,8 @@ def normalize_paginated_url(url: str) -> str:
     normalized_url = normalized_url.rstrip('/')
     
     # If we removed pagination and the URL doesn't end with a meaningful path, add trailing slash
-    if normalized_url and not normalized_url.endswith(('.html', '.htm', '.php', '.aspx')):
+    # BUT NOT for PDF files or other document types
+    if normalized_url and not normalized_url.endswith(('.html', '.htm', '.php', '.aspx', '.pdf', '.doc', '.docx', '.txt')):
         normalized_url += '/'
     
     return normalized_url

@@ -1,14 +1,11 @@
 /**
  * Simple Cognito Authentication Service
- * Handles login, signup, and token management for admin users
+ * Handles login and token management for admin users
  */
 
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
-  SignUpCommand,
-  ConfirmSignUpCommand,
-  ResendConfirmationCodeCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 // Cognito configuration from environment variables
@@ -29,46 +26,6 @@ const cognitoClient = new CognitoIdentityProviderClient({
 });
 
 class AuthService {
-  // Sign up new admin user
-  async signUp(username, password, email, fullName = '') {
-    if (!config.userPoolId || !config.clientId) {
-      return {
-        success: false,
-        error: 'Cognito configuration not available. Please deploy the backend first.',
-      };
-    }
-
-    try {
-      const command = new SignUpCommand({
-        ClientId: config.clientId,
-        Username: username,
-        Password: password,
-        UserAttributes: [
-          {
-            Name: 'email',
-            Value: email,
-          },
-          ...(fullName ? [{
-            Name: 'name',
-            Value: fullName,
-          }] : []),
-        ],
-      });
-
-      const response = await cognitoClient.send(command);
-      return {
-        success: true,
-        userSub: response.UserSub,
-        needsConfirmation: !response.UserConfirmed,
-      };
-    } catch (error) {
-      return {
-        success: false,
-        error: this.getErrorMessage(error),
-      };
-    }
-  }
-
   // Sign in existing admin user
   async signIn(username, password) {
     if (!config.userPoolId || !config.clientId) {
@@ -110,43 +67,6 @@ class AuthService {
         success: false,
         error: 'Authentication failed',
       };
-    } catch (error) {
-      return {
-        success: false,
-        error: this.getErrorMessage(error),
-      };
-    }
-  }
-
-  // Confirm sign up with verification code
-  async confirmSignUp(username, confirmationCode) {
-    try {
-      const command = new ConfirmSignUpCommand({
-        ClientId: config.clientId,
-        Username: username,
-        ConfirmationCode: confirmationCode,
-      });
-
-      await cognitoClient.send(command);
-      return { success: true };
-    } catch (error) {
-      return {
-        success: false,
-        error: this.getErrorMessage(error),
-      };
-    }
-  }
-
-  // Resend confirmation code
-  async resendConfirmationCode(username) {
-    try {
-      const command = new ResendConfirmationCodeCommand({
-        ClientId: config.clientId,
-        Username: username,
-      });
-
-      await cognitoClient.send(command);
-      return { success: true };
     } catch (error) {
       return {
         success: false,
@@ -215,15 +135,7 @@ class AuthService {
       case 'NotAuthorizedException':
         return 'Incorrect username or password.';
       case 'UserNotConfirmedException':
-        return 'Please confirm your email address first.';
-      case 'UsernameExistsException':
-        return 'Username already exists. Please choose a different one.';
-      case 'InvalidPasswordException':
-        return 'Password does not meet requirements.';
-      case 'CodeMismatchException':
-        return 'Invalid verification code.';
-      case 'ExpiredCodeException':
-        return 'Verification code has expired.';
+        return 'Please contact administrator to activate your account.';
       default:
         return error.message || 'An error occurred. Please try again.';
     }
