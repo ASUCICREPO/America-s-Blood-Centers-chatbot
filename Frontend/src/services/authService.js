@@ -6,6 +6,7 @@
 import {
   CognitoIdentityProviderClient,
   InitiateAuthCommand,
+  RespondToAuthChallengeCommand,
 } from '@aws-sdk/client-cognito-identity-provider';
 
 // Cognito configuration from environment variables
@@ -47,6 +48,18 @@ class AuthService {
 
       const response = await cognitoClient.send(command);
       
+      // Handle new password required challenge (temporary password)
+      if (response.ChallengeName === 'NEW_PASSWORD_REQUIRED') {
+        return {
+          success: false,
+          challengeName: 'NEW_PASSWORD_REQUIRED',
+          session: response.Session,
+          username: username,
+          error: 'You must set a new password before continuing.'
+        };
+      }
+      
+      // Normal successful authentication
       if (response.AuthenticationResult) {
         const tokens = {
           accessToken: response.AuthenticationResult.AccessToken,
@@ -66,6 +79,56 @@ class AuthService {
       return {
         success: false,
         error: 'Authentication failed',
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: this.getErrorMessage(error),
+      };
+    }
+  }
+
+  // Handle new password challenge
+  async setNewPassword(username, newPassword, session) {
+    if (!config.userPoolId || !config.clientId) {
+      return {
+        success: false,
+        error: 'Cognito configuration not available.',
+      };
+    }
+
+    try {
+      const command = new RespondToAuthChallengeCommand({
+        ClientId: config.clientId,
+        ChallengeName: 'NEW_PASSWORD_REQUIRED',
+        Session: session,
+        ChallengeResponses: {
+          USERNAME: username,
+          NEW_PASSWORD: newPassword,
+        },
+      });
+
+      const response = await cognitoClient.send(command);
+      
+      if (response.AuthenticationResult) {
+        const tokens = {
+          accessToken: response.AuthenticationResult.AccessToken,
+          idToken: response.AuthenticationResult.IdToken,
+          refreshToken: response.AuthenticationResult.RefreshToken,
+        };
+        
+        // Store tokens in localStorage
+        this.storeTokens(tokens);
+        
+        return {
+          success: true,
+          tokens,
+        };
+      }
+      
+      return {
+        success: false,
+        error: 'Failed to set new password',
       };
     } catch (error) {
       return {

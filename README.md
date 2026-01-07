@@ -1,134 +1,177 @@
 # America's Blood Centers AI Chatbot
 
-An intelligent chatbot powered by Amazon Bedrock that provides comprehensive information about blood donation, eligibility criteria, donation centers, and real-time blood supply status. Built specifically for America's Blood Centers to help educate the public and connect potential donors with local blood centers.
+An intelligent AI-powered chatbot that helps users learn about blood donation, find donation centers, and get real-time information about blood supply status. Built with AWS Bedrock Knowledge Base and a modern React frontend for America's Blood Centers.
 
-## About the Chatbot
+## Demo Video
 
-This AI-powered chatbot serves as a 24/7 virtual assistant for blood donation information, offering:
+<p align="center">
+  <img src="./docs/media/user-interface.gif" alt="America's Blood Centers Chatbot Demo" width="640" />
+</p>
 
-- **Instant Answers**: Get immediate responses to questions about blood donation eligibility, process, and safety
-- **Bilingual Support**: Full functionality in both English and Spanish to serve diverse communities
-- **Real-time Data**: Daily updates on blood supply status and current news from America's Blood Centers
-- **Smart Routing**: Automatically connects users to local blood donation centers
+> **Note:** Please add a demo GIF at `docs/media/user-interface.gif`
 
-## Repository Structure
+## Index
 
-```
-Americas-Blood-Centers-chatbot-Public/
-├── Backend/                    # AWS CDK infrastructure and Lambda functions
-│   ├── bin/                   # CDK app entry point
-│   ├── lib/                   # CDK stack definitions
-│   ├── lambda/                # Lambda function code
-│   ├── data-sources/          # Knowledge base data sources
-│   └── deploy.sh              # One-command deployment script
-├── Frontend/                   # React web application
-│   ├── src/                   # React components and logic
-│   ├── public/                # Static assets
-│   └── package.json           # Frontend dependencies
-└── docs/                      # Documentation and diagrams
-```
+| Description | Link |
+|-------------|------|
+| Overview | [Overview](#overview) |
+| Architecture | [Architecture](#architecture-diagram) |
+| Detailed Architecture | [Architecture Deep Dive](docs/architectureDeepDive.md) |
+| Deployment | [Deployment Guide](docs/deploymentGuide.md) |
+| User Guide | [User Guide](docs/userGuide.md) |
+| API Documentation | [API Documentation](docs/APIDoc.md) |
+| Modification Guide | [Modification Guide](docs/modificationGuide.md) |
+| Credits | [Credits](#credits) |
+| License | [License](#license) |
 
-## Architecture
+## Overview
 
-![Architecture Diagram](docs/America's_Blood_Centers.png)
+America's Blood Centers AI Chatbot is a conversational AI assistant designed to provide comprehensive information about blood donation. It enables users to get instant, accurate answers about eligibility, donation process, blood center locations, and current blood supply status through natural language conversations.
 
-**Key Components:**
+### Key Features
 
-**AI & Machine Learning:**
-- **Amazon Bedrock Knowledge Base**: Vector database for semantic search and retrieval
-- **OpenSearch Serverless**: Vector collection for storing document embeddings
-- **Bedrock Model**: Bedrock LLM model for natural language conversations
-- **Amazon Titan Text Embeddings v1**: Model for generating vector embeddings
-- **Bedrock Data Automation**: Advanced PDF parsing with multimodal support
+- **AI-Powered Conversations** using AWS Bedrock with Claude 3.5 Sonnet
+- **Knowledge Base Integration** with blood donation documents and website content
+- **Bilingual Support** for English and Spanish users
+- **Real-time Information** with daily content updates
+- **Source Citations** with links to authoritative information
+- **Admin Dashboard** for monitoring conversations and managing data sources
+- **Blood Center Locator** integration for finding nearby donation locations
+- **Responsive Design** optimized for both desktop and mobile devices
 
-**Data Storage:**
-- **S3 Buckets**: 
-  - Documents bucket for PDF storage
-  - Supplemental bucket for multimodal content (images from documents)
-  - Builds bucket for frontend deployment artifacts
-- **DynamoDB**: Chat history table with GSI for session and date queries
+## Architecture Diagram
 
-**Compute & API:**
-- **AWS Lambda Functions**:
-  - Chat Lambda: Main conversation handler
-  - Sync Operations Lambda: Data source synchronization
-  - Daily Sync Lambda: Automated daily updates
-- **API Gateway**: RESTful API with CORS support and throttling
-- **Step Functions**: Sequential sync workflow orchestration
+![Architecture Diagram](./docs/America's_Blood_Centers.png)
 
-**Data Sources:**
-- **S3 Data Source**: PDF documents with semantic chunking
-- **Web Crawler Data Source**: Live website content from americasblood.org
-- **Daily Sync Data Source**: Frequently updated pages (blood supply status)
+The application implements a serverless architecture on AWS, combining:
 
-**Frontend & Authentication:**
-- **AWS Amplify**: React application hosting and CI/CD
-- **Amazon Cognito**: User pool for admin authentication
+- **Frontend**: React application hosted on AWS Amplify
+- **Backend**: AWS CDK-deployed infrastructure with API Gateway and Lambda
+- **AI Layer**: AWS Bedrock Knowledge Base with document and web content
+- **Data Storage**: S3 for documents, DynamoDB for conversation history
+- **Authentication**: Amazon Cognito for admin dashboard access
 
-**Automation & Monitoring:**
-- **EventBridge**: Daily sync scheduling (2 PM EST)
-- **IAM Roles**: Fine-grained permissions for all services
-- **CloudWatch**: Logging and monitoring (implicit)
+For a detailed deep dive into the architecture, see [docs/architectureDeepDive.md](docs/architectureDeepDive.md).
 
-## Features
+## Deployment
 
-**Backend:**
-- Serverless architecture using AWS CDK
-- OpenSearch Serverless for vector search
-- Automated data ingestion and daily sync
-- RESTful API with CORS support
+For detailed deployment instructions, including prerequisites and step-by-step guides, see [docs/deploymentGuide.md](docs/deploymentGuide.md).
 
-**Frontend:**
-- Responsive React application
-- Real-time chat interface with markdown support
-- Language toggle (English/Spanish)
-- Material-UI components for modern design
-- Mobile-optimized user experience
+### Quick Start
 
-## Quick Start
-
-### Prerequisites
-- AWS Account with Bedrock model access enabled
-- AWS CLI configured with appropriate permissions
-
-### Deployment
-
-1. **Clone the repository:**
 ```bash
-git clone https://github.com/your-org/Americas-Blood-Centers-chatbot.git
-cd Americas-Blood-Centers-chatbot/Backend
-```
+# Clone the repository
+git clone https://github.com/your-org/America-Blood-Centers-chatbot.git
+cd America-Blood-Centers-chatbot/Backend
 
-2. **Run the deployment script:**
-```bash
+# Run the deployment script
 chmod +x deploy.sh
 ./deploy.sh
 ```
 
-3. **Follow the interactive prompts** to configure your deployment settings.
+## User Guide
 
-The script automatically handles:
-- Infrastructure deployment via CDK
-- Frontend build and deployment to Amplify
-- Data source configuration and ingestion
-- Daily sync automation setup
+For detailed usage instructions with screenshots, see [docs/userGuide.md](docs/userGuide.md).
 
-## Data Sources
+## API Documentation
 
-The chatbot uses two primary data sources:
+For complete API reference including chat endpoints, admin APIs, and authentication, see [docs/APIDoc.md](docs/APIDoc.md).
 
-**PDF Documents (S3):**
-- Blood donation statistics and reports
-- Eligibility guidelines and medical criteria
-- Safety protocols and educational materials
+## Modification Guide
 
-**Live Website Content (Web Crawler):**
-- Current blood supply status from americasblood.org
-- Donation center locations and information
-- Latest news and announcements
+For developers looking to extend or customize this project, see [docs/modificationGuide.md](docs/modificationGuide.md).
 
-**Daily Updates:** Content is automatically refreshed every day at 2 AM UTC to ensure information accuracy.
+## Directory Structure
+
+```
+├── Backend/
+│   ├── bin/
+│   │   └── bedrock-stack.ts        # CDK app entry point
+│   ├── lambda/
+│   │   ├── chat-lambda/            # Main chat handler with streaming
+│   │   └── sync-operations/        # Data source management
+│   ├── lib/
+│   │   └── bedrock-chatbot-stack.ts # Main CDK stack definition
+│   ├── data-sources/               # Knowledge base content
+│   ├── deploy.sh                   # One-command deployment script
+│   ├── cdk.json
+│   ├── package.json
+│   └── tsconfig.json
+├── Frontend/
+│   ├── src/
+│   │   ├── admin/                  # Admin login and dashboard
+│   │   ├── Components/             # Reusable UI components
+│   │   ├── services/               # API and authentication services
+│   │   ├── utilities/              # Constants and helper functions
+│   │   ├── App.js                  # Main application component
+│   │   └── index.js                # Application entry point
+│   ├── public/
+│   │   ├── logo.png               # America's Blood Centers logo
+│   │   └── index.html
+│   └── package.json
+├── docs/
+│   ├── architectureDeepDive.md
+│   ├── deploymentGuide.md
+│   ├── userGuide.md
+│   ├── APIDoc.md
+│   ├── modificationGuide.md
+│   ├── media/                      # Screenshots and diagrams
+│   └── America's_Blood_Centers.png # Architecture diagram
+├── LICENSE
+└── README.md
+```
+
+## Features
+
+### Core Functionality
+- **Intelligent Q&A**: Natural language processing for blood donation questions
+- **Bilingual Support**: Full English and Spanish language support
+- **Source Attribution**: Every response includes citations to authoritative sources
+- **Real-time Updates**: Daily synchronization of blood supply and center information
+
+### Data Sources
+- **PDF Documents**: Official guidelines, statistics, and educational materials
+- **Website Content**: Live content from americasblood.org including donation centers
+- **Daily Sync**: Automated updates of time-sensitive information
+
+### Admin Features
+- **Conversation Monitoring**: View and analyze chat interactions
+- **Data Source Management**: Manual sync triggers and status monitoring
+- **System Health**: Real-time status of all system components
+- **Analytics Dashboard**: Usage statistics and popular questions
+
+### Technical Features
+- **Serverless Architecture**: Auto-scaling AWS Lambda functions
+- **Vector Search**: Semantic search using Amazon Bedrock Knowledge Base
+- **Advanced PDF Processing**: Bedrock Data Automation with multimodal support
+- **Secure Authentication**: Amazon Cognito for admin access
+
+## Data Flow
+
+1. **User Interaction**: User sends question through React frontend
+2. **API Gateway**: Routes request to Chat Lambda function
+3. **Knowledge Base Query**: Lambda queries Bedrock Knowledge Base
+4. **Vector Search**: OpenSearch performs semantic search on embeddings
+5. **AI Response**: Bedrock generates contextual response using retrieved information
+6. **Source Attribution**: System adds citations and returns formatted response
+
+## Security & Compliance
+
+- **Data Privacy**: No personal information stored in conversation logs
+- **Secure Authentication**: JWT-based admin authentication via Cognito
+- **Encrypted Communication**: All data encrypted in transit and at rest
+- **Access Control**: Fine-grained IAM permissions for all AWS resources
+
+## Credits
+
+This application was developed for America's Blood Centers to support their mission of ensuring a safe and adequate blood supply for patients in need.
+
+**Built with:**
+- AWS Bedrock for AI/ML capabilities
+- React and Material-UI for the frontend
+- AWS CDK for infrastructure as code
+- OpenSearch Serverless for vector search
 
 ## License
 
-This project is licensed under the MIT License.
+This project is licensed under the MIT License - see the [LICENSE](./LICENSE) file for details.
