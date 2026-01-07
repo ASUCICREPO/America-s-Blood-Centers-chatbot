@@ -19,7 +19,7 @@ bedrock_agent = boto3.client('bedrock-agent')
 
 # Environment variables
 KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID')
-DAILY_SYNC_DATA_SOURCE_NAME = 'BloodCentersDailySync-v2'
+DAILY_SYNC_DATA_SOURCE_NAME = os.environ.get('DAILY_SYNC_DATA_SOURCE_NAME', 'daily-sync')
 
 def lambda_handler(event, context):
     """

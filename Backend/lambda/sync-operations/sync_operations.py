@@ -18,6 +18,9 @@ bedrock_agent = boto3.client('bedrock-agent')
 
 # Environment variables
 KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID')
+DOCUMENTS_DATA_SOURCE_NAME = os.environ.get('DOCUMENTS_DATA_SOURCE_NAME', 'documents')
+WEBSITE_DATA_SOURCE_NAME = os.environ.get('WEBSITE_DATA_SOURCE_NAME', 'website')
+DAILY_SYNC_DATA_SOURCE_NAME = os.environ.get('DAILY_SYNC_DATA_SOURCE_NAME', 'daily-sync')
 
 def lambda_handler(event, context):
     """
@@ -61,13 +64,13 @@ def start_sync_job(event):
     target_source = None
     for ds in data_sources:
         name = ds.get('name', '')
-        if source_type == 'pdf' and 'Documents' in name:
+        if source_type == 'pdf' and name == DOCUMENTS_DATA_SOURCE_NAME:
             target_source = ds
             break
-        elif source_type == 'daily' and 'DailySync' in name:
+        elif source_type == 'daily' and name == DAILY_SYNC_DATA_SOURCE_NAME:
             target_source = ds
             break
-        elif source_type == 'web' and 'Website' in name and 'DailySync' not in name:
+        elif source_type == 'web' and name == WEBSITE_DATA_SOURCE_NAME:
             target_source = ds
             break
     
@@ -148,11 +151,11 @@ def list_data_sources():
         source_map = {}
         for ds in data_sources:
             name = ds.get('name', '')
-            if 'Documents' in name:
+            if name == DOCUMENTS_DATA_SOURCE_NAME:
                 source_map['pdf'] = ds
-            elif 'Website' in name and 'DailySync' not in name:
+            elif name == WEBSITE_DATA_SOURCE_NAME:
                 source_map['web'] = ds
-            elif 'DailySync' in name:
+            elif name == DAILY_SYNC_DATA_SOURCE_NAME:
                 source_map['daily'] = ds
         
         return {

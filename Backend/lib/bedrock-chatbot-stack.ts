@@ -441,7 +441,7 @@ export class BedrockChatbotStack extends cdk.Stack {
 
     // Create the Knowledge Base with OpenSearch Serverless vector store
     const knowledgeBase = new bedrock.CfnKnowledgeBase(this, "BloodCentersKnowledgeBase", {
-      name: `BloodCentersKnowledgeBase`,
+      name: `${projectName}-knowledge-base`,
       description: "Knowledge base for America's Blood Centers containing blood donation information, eligibility criteria, and center locations",
       roleArn: knowledgeBaseRole.roleArn,
       knowledgeBaseConfiguration: {
@@ -493,7 +493,7 @@ export class BedrockChatbotStack extends cdk.Stack {
     // ========================================
 
     const dataSource = new bedrock.CfnDataSource(this, "BloodCentersDataSource", {
-      name: "BloodCentersDocuments",
+      name: `${projectName}-documents`,
       description: "America's Blood Centers PDF documents including donation guides, eligibility information, and blood supply data",
       knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
       dataSourceConfiguration: {
@@ -530,7 +530,7 @@ export class BedrockChatbotStack extends cdk.Stack {
     // Web Crawler Data Source for America's Blood Centers Website
     // ========================================
     const webCrawlerDataSource = new bedrock.CfnDataSource(this, "BloodCentersWebCrawlerDataSource", {
-      name: "BloodCentersWebsite",
+      name: `${projectName}-website`,
       description: "Web crawler for America's Blood Centers website including donation information and blood center locations",
       knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
       dataSourceConfiguration: {
@@ -589,7 +589,7 @@ export class BedrockChatbotStack extends cdk.Stack {
     // Daily Sync Data Source for Specific URLs
     // ========================================
     const dailySyncDataSource = new bedrock.CfnDataSource(this, "BloodCentersDailySyncDataSource", {
-      name: "BloodCentersDailySync",
+      name: `${projectName}-daily-sync`,
       description: "Daily sync data source for specific blood donation pages that update frequently",
       knowledgeBaseId: knowledgeBase.attrKnowledgeBaseId,
       dataSourceConfiguration: {
@@ -669,6 +669,10 @@ export class BedrockChatbotStack extends cdk.Stack {
         TEMPERATURE: '0.1',
         DOCUMENTS_BUCKET: documentsBucket.bucketName,
         CHAT_HISTORY_TABLE: chatHistoryTable.tableName,
+        PROJECT_NAME: projectName,
+        DOCUMENTS_DATA_SOURCE_NAME: `${projectName}-documents`,
+        WEBSITE_DATA_SOURCE_NAME: `${projectName}-website`,
+        DAILY_SYNC_DATA_SOURCE_NAME: `${projectName}-daily-sync`,
       },
       description: 'America\'s Blood Centers Bedrock Chat Handler',
     });
@@ -717,6 +721,10 @@ export class BedrockChatbotStack extends cdk.Stack {
       memorySize: 256,
       environment: {
         KNOWLEDGE_BASE_ID: knowledgeBase.attrKnowledgeBaseId,
+        PROJECT_NAME: projectName,
+        DOCUMENTS_DATA_SOURCE_NAME: `${projectName}-documents`,
+        WEBSITE_DATA_SOURCE_NAME: `${projectName}-website`,
+        DAILY_SYNC_DATA_SOURCE_NAME: `${projectName}-daily-sync`,
       },
       description: 'Simple sync operations for Step Functions workflow',
     });
@@ -869,6 +877,8 @@ export class BedrockChatbotStack extends cdk.Stack {
       memorySize: 256,
       environment: {
         KNOWLEDGE_BASE_ID: knowledgeBase.attrKnowledgeBaseId,
+        PROJECT_NAME: projectName,
+        DAILY_SYNC_DATA_SOURCE_NAME: `${projectName}-daily-sync`,
       },
       description: 'Daily Sync Automation for Blood Centers Daily Data Source',
     });

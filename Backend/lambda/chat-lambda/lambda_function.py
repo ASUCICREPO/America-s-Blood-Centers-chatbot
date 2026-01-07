@@ -25,10 +25,10 @@ dynamodb = boto3.resource('dynamodb')
 
 # Environment variables
 KNOWLEDGE_BASE_ID = os.environ.get('KNOWLEDGE_BASE_ID')
-MODEL_ID = os.environ.get('MODEL_ID', 'global.anthropic.claude-sonnet-4-5-20250929-v1:0')
-MAX_TOKENS = int(os.environ.get('MAX_TOKENS', '1000'))
-TEMPERATURE = float(os.environ.get('TEMPERATURE', '0.0'))
-CHAT_HISTORY_TABLE = os.environ.get('CHAT_HISTORY_TABLE', 'BloodCentersChatHistory')
+MODEL_ID = os.environ.get('MODEL_ID')
+MAX_TOKENS = int(os.environ.get('MAX_TOKENS'))
+TEMPERATURE = float(os.environ.get('TEMPERATURE'))
+CHAT_HISTORY_TABLE = os.environ.get('CHAT_HISTORY_TABLE')
 
 # Initialize DynamoDB table
 try:
@@ -375,6 +375,11 @@ def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[
         sync_type = body.get('sync_type', 'manual')  # 'manual' or 'daily'
         data_source_type = body.get('data_source_type', 'both')  # 'both', 'pdf', 'web', or 'daily'
         
+        # Get data source names from environment variables
+        documents_data_source_name = os.environ.get('DOCUMENTS_DATA_SOURCE_NAME', 'documents')
+        website_data_source_name = os.environ.get('WEBSITE_DATA_SOURCE_NAME', 'website')
+        daily_sync_data_source_name = os.environ.get('DAILY_SYNC_DATA_SOURCE_NAME', 'daily-sync')
+        
         # Initialize Bedrock Agent client
         bedrock_agent = boto3.client('bedrock-agent')
         
@@ -391,7 +396,7 @@ def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[
         if sync_type == 'daily' or data_source_type == 'daily':
             # Only sync the daily sync data source
             for ds in data_sources:
-                if 'DailySync' in ds.get('name', ''):
+                if ds.get('name', '') == daily_sync_data_source_name:
                     sources_to_sync.append(ds)
                     break
         else:
@@ -400,11 +405,11 @@ def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[
                 ds_name = ds.get('name', '')
                 if data_source_type == 'both':
                     # Sync all except daily sync (that runs automatically)
-                    if 'DailySync' not in ds_name:
+                    if ds_name != daily_sync_data_source_name:
                         sources_to_sync.append(ds)
-                elif data_source_type == 'pdf' and 'Documents' in ds_name:
+                elif data_source_type == 'pdf' and ds_name == documents_data_source_name:
                     sources_to_sync.append(ds)
-                elif data_source_type == 'web' and 'Website' in ds_name:
+                elif data_source_type == 'web' and ds_name == website_data_source_name:
                     sources_to_sync.append(ds)
         
         if not sources_to_sync:
@@ -413,7 +418,8 @@ def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[
                 'headers': headers,
                 'body': json.dumps({
                     'success': False,
-                    'error': f'No data sources found for sync type: {data_source_type}'
+                    'error': f'No data sources found for sync type: {data_source_type}',
+                    'available_sources': [ds.get('name', 'unnamed') for ds in data_sources]
                 })
             }
         
@@ -424,8 +430,8 @@ def handle_sync_request(event: Dict[str, Any], headers: Dict[str, str]) -> Dict[
         # For "both" sync type, we want to sync PDF first, then website
         if data_source_type == 'both':
             # Sort data sources to ensure PDF documents sync first
-            pdf_sources = [ds for ds in sources_to_sync if 'Documents' in ds.get('name', '')]
-            web_sources = [ds for ds in sources_to_sync if 'Website' in ds.get('name', '')]
+            pdf_sources = [ds for ds in sources_to_sync if ds.get('name', '') == documents_data_source_name]
+            web_sources = [ds for ds in sources_to_sync if ds.get('name', '') == website_data_source_name]
             
             # Combine in order: PDF first, then website
             sources_to_sync = pdf_sources + web_sources
