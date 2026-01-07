@@ -18,13 +18,8 @@ function BotReply({ message, sources = [], currentLanguage }) {
   
   // Function to get clean display name for sources
   const getDisplayName = (source) => {
-    // Handle S3 presigned URLs and regular URLs
+    // Handle S3 URLs and regular URLs
     let cleanUrl = source.url
-    
-    // For S3 presigned URLs, extract the original path before query parameters
-    if (source.url.includes('amazonaws.com') && source.url.includes('?')) {
-      cleanUrl = source.url.split('?')[0]
-    }
     
     // For PDFs, show the filename without extension
     if (cleanUrl.includes('.pdf')) {

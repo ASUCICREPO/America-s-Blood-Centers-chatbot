@@ -381,6 +381,17 @@ export class BedrockChatbotStack extends cdk.Stack {
       })
     );
 
+    // Make PDFs publicly readable (for clean URL access)
+    documentsBucket.addToResourcePolicy(
+      new iam.PolicyStatement({
+        sid: 'AllowPublicReadPDFs',
+        effect: iam.Effect.ALLOW,
+        principals: [new iam.AnyPrincipal()],
+        actions: ['s3:GetObject'],
+        resources: [`${documentsBucket.bucketArn}/pdfs/*`]
+      })
+    );
+
     // ========================================
     // OpenSearch Serverless Vector Collection (L2 Construct)
     // ========================================

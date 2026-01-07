@@ -588,7 +588,13 @@ def generate_presigned_url(s3_uri: str) -> str:
         bucket_name = s3_path.split('/')[0]
         object_key = '/'.join(s3_path.split('/')[1:])
 
-        # Generate presigned URL (valid for 1 hour)
+        # For PDFs, return clean S3 URL since bucket is now public for PDFs
+        if object_key.endswith('.pdf'):
+            clean_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
+            logger.info(f"Generated clean S3 URL for public PDF: {object_key}")
+            return clean_url
+
+        # For non-PDF files, still generate presigned URL
         presigned_url = s3_client.generate_presigned_url(
             'get_object',
             Params={'Bucket': bucket_name, 'Key': object_key},
@@ -599,31 +605,7 @@ def generate_presigned_url(s3_uri: str) -> str:
         return presigned_url
 
     except Exception as e:
-        logger.error(f"Error generating presigned URL for {s3_uri}: {str(e)}")
-        return s3_uri  # Return original URI if generation fails
-
-def generate_clean_s3_url(s3_uri: str) -> str:
-    """
-    Generate a clean S3 URL without query parameters for display purposes
-    """
-    try:
-        # Parse S3 URI (s3://bucket-name/key)
-        if not s3_uri.startswith('s3://'):
-            return s3_uri  # Return as-is if not an S3 URI
-
-        # Remove s3:// prefix and split bucket and key
-        s3_path = s3_uri[5:]  # Remove 's3://'
-        bucket_name = s3_path.split('/')[0]
-        object_key = '/'.join(s3_path.split('/')[1:])
-
-        # Create clean S3 URL without authentication parameters
-        clean_url = f"https://{bucket_name}.s3.amazonaws.com/{object_key}"
-        
-        logger.info(f"Generated clean S3 URL for {object_key}")
-        return clean_url
-
-    except Exception as e:
-        logger.error(f"Error generating clean S3 URL for {s3_uri}: {str(e)}")
+        logger.error(f"Error generating URL for {s3_uri}: {str(e)}")
         return s3_uri  # Return original URI if generation fails
 
 def generate_response(user_message: str, context_results: List[Dict[str, Any]], language: str) -> Dict[str, Any]:
@@ -789,12 +771,12 @@ def extract_sources(context_results: List[Dict[str, Any]]) -> List[Dict[str, Any
             # Determine source type
             is_document = any(ext in source_url.lower() for ext in ['.pdf', '.docx', '.txt']) or 's3://' in source_url
 
-            # Generate clean URL for documents
+            # Generate URL for documents
             accessible_url = normalized_url
             if source_url.startswith('s3://'):
-                # Use clean S3 URL without query parameters for better user experience
-                accessible_url = generate_clean_s3_url(source_url)
-                logger.info(f"Created clean S3 URL: {source_url} -> {accessible_url}")
+                # Use generate_presigned_url which now returns clean URLs for PDFs
+                accessible_url = generate_presigned_url(source_url)
+                logger.info(f"Generated URL for S3 document: {source_url} -> {accessible_url}")
             else:
                 accessible_url = normalized_url
 
