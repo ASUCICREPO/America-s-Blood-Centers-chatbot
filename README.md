@@ -30,7 +30,7 @@ America's Blood Centers AI Chatbot is a conversational AI assistant designed to 
 
 ### Key Features
 
-- **AI-Powered Conversations** using AWS Bedrock with Claude 3.5 Sonnet
+- **AI-Powered Conversations** using AWS Bedrock Models
 - **Knowledge Base Integration** with blood donation documents and website content
 - **Bilingual Support** for English and Spanish users
 - **Real-time Information** with daily content updates

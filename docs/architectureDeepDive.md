@@ -40,7 +40,7 @@ The application follows a serverless, event-driven architecture on AWS, designed
 - **Technology**: AWS Bedrock
 - **Components**:
   - Knowledge Base with vector search
-  - Claude 3.5 Sonnet/Haiku models
+  - Bedrock LLM models
   - Amazon Titan embeddings
   - OpenSearch Serverless
 
