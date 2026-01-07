@@ -50,7 +50,13 @@ export class BedrockChatbotStack extends cdk.Stack {
       autoDeleteObjects: true,
       versioned: false,
       publicReadAccess: false,
-      blockPublicAccess: s3.BlockPublicAccess.BLOCK_ALL,
+      // Allow public policies but block other public access
+      blockPublicAccess: new s3.BlockPublicAccess({
+        blockPublicAcls: true,
+        blockPublicPolicy: false, // Allow public policies (needed for PDF access)
+        ignorePublicAcls: true,
+        restrictPublicBuckets: false, // Allow public bucket policies
+      }),
       cors: [
         {
           allowedMethods: [s3.HttpMethods.GET, s3.HttpMethods.PUT, s3.HttpMethods.POST],
